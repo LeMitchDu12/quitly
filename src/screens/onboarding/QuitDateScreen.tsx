@@ -8,6 +8,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/Root";
 import { StorageKeys } from "../../storage/keys";
 import { getString, setString } from "../../storage/mmkv";
+import { useTranslation } from "react-i18next";
 
 type Props = NativeStackScreenProps<RootStackParamList, "QuitDate">;
 
@@ -18,6 +19,7 @@ function todayISO() {
 }
 
 export default function QuitDateScreen({ navigation }: Props) {
+  const { t } = useTranslation();
   const [quitDate, setQuitDate] = useState(getString(StorageKeys.quitDate) ?? todayISO());
 
   const saveAndNext = () => {
@@ -27,11 +29,11 @@ export default function QuitDateScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      <Text style={styles.title}>When did you quit?</Text>
-      <Text style={styles.subtitle}>Pick your start date.</Text>
+      <Text style={styles.title}>{t("quitDateTitle")}</Text>
+      <Text style={styles.subtitle}>{t("quitDateSubtitle")}</Text>
 
       <View style={styles.card}>
-        <Text style={styles.label}>Quit date (YYYY-MM-DD)</Text>
+        <Text style={styles.label}>{t("quitDateLabel")}</Text>
 
         <Pressable
           style={styles.input}
@@ -46,16 +48,16 @@ export default function QuitDateScreen({ navigation }: Props) {
         >
           <Text style={styles.value}>{quitDate}</Text>
           <Text style={styles.hint}>
-            {Platform.OS === "ios" ? "Tap to toggle (MVP)" : "Tap to toggle (MVP)"}
+            {Platform.OS === "ios" ? t("tapToToggle") : t("tapToToggle")}
           </Text>
         </Pressable>
       </View>
 
       <View style={{ flex: 1 }} />
 
-      <SecondaryButton title="Start today" onPress={() => setQuitDate(todayISO())} />
+      <SecondaryButton title={t("startToday")} onPress={() => setQuitDate(todayISO())} />
       <View style={{ height: theme.spacing.sm }} />
-      <PrimaryButton title="Continue" onPress={saveAndNext} />
+      <PrimaryButton title={t("continue")} onPress={saveAndNext} />
     </Screen>
   );
 }

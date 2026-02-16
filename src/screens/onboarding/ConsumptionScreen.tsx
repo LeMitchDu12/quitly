@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useTranslation } from "react-i18next";
 import Screen from "../../components/Screen";
 import PrimaryButton from "../../components/PrimaryButton";
 import { theme } from "../../theme";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/Root";
 import { StorageKeys } from "../../storage/keys";
 import { getNumber, setNumber } from "../../storage/mmkv";
@@ -30,23 +31,14 @@ function Stepper({
   return (
     <View style={styles.stepper}>
       <Text style={styles.stepperLabel}>{label}</Text>
-
       <View style={styles.stepperRow}>
-        <Pressable
-          style={styles.stepBtn}
-          onPress={() => onChange(Math.max(min, value - step))}
-        >
-          <Text style={styles.stepBtnText}>–</Text>
+        <Pressable style={styles.stepBtn} onPress={() => onChange(Math.max(min, value - step))}>
+          <Text style={styles.stepBtnText}>-</Text>
         </Pressable>
-
         <Text style={styles.stepValue}>
           {value} {suffix ?? ""}
         </Text>
-
-        <Pressable
-          style={styles.stepBtn}
-          onPress={() => onChange(Math.min(max, value + step))}
-        >
+        <Pressable style={styles.stepBtn} onPress={() => onChange(Math.min(max, value + step))}>
           <Text style={styles.stepBtnText}>+</Text>
         </Pressable>
       </View>
@@ -55,6 +47,7 @@ function Stepper({
 }
 
 export default function ConsumptionScreen({ navigation }: Props) {
+  const { t } = useTranslation();
   const [cigsPerDay, setCigsPerDay] = useState(getNumber(StorageKeys.cigsPerDay) ?? 12);
   const [pricePerPack, setPricePerPack] = useState(getNumber(StorageKeys.pricePerPack) ?? 12);
   const [cigsPerPack, setCigsPerPack] = useState(getNumber(StorageKeys.cigsPerPack) ?? 20);
@@ -74,18 +67,14 @@ export default function ConsumptionScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      <Text style={styles.title}>Your baseline</Text>
-      <Text style={styles.subtitle}>This helps calculate savings & progress.</Text>
-
+      <Text style={styles.title}>{t("consumptionTitle")}</Text>
+      <Text style={styles.subtitle}>{t("consumptionSubtitle")}</Text>
       <View style={{ height: theme.spacing.md }} />
-
-      <Stepper label="Cigarettes per day" value={cigsPerDay} onChange={setCigsPerDay} min={0} max={80} />
-      <Stepper label="Price per pack" value={pricePerPack} onChange={setPricePerPack} min={0} max={50} suffix="€" />
-      <Stepper label="Cigarettes per pack" value={cigsPerPack} onChange={setCigsPerPack} min={1} max={40} />
-
+      <Stepper label={t("cigsPerDay")} value={cigsPerDay} onChange={setCigsPerDay} min={0} max={80} />
+      <Stepper label={t("pricePerPack")} value={pricePerPack} onChange={setPricePerPack} min={0} max={50} suffix="EUR" />
+      <Stepper label={t("cigsPerPack")} value={cigsPerPack} onChange={setCigsPerPack} min={1} max={40} />
       <View style={{ flex: 1 }} />
-
-      <PrimaryButton title="Continue" onPress={saveAndNext} disabled={!canContinue} />
+      <PrimaryButton title={t("continue")} onPress={saveAndNext} disabled={!canContinue} />
     </Screen>
   );
 }
@@ -93,7 +82,6 @@ export default function ConsumptionScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   title: { color: theme.colors.textPrimary, fontSize: theme.typography.h2.fontSize, fontWeight: "700" },
   subtitle: { color: theme.colors.textSecondary, marginTop: 8 },
-
   stepper: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,

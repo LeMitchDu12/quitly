@@ -17,11 +17,11 @@ export default function WelcomeScreen({ navigation }: Props) {
       <View style={styles.wrap}>
         <View style={styles.center}>
           <Text style={styles.logo}>{t("appName")}</Text>
-          <Text style={styles.title}>Reclaim your freedom.</Text>
-          <Text style={styles.subtitle}>Every smoke-free day counts.</Text>
+          <Text style={styles.title}>{t("welcomeTitle")}</Text>
+          <Text style={styles.subtitle}>{t("welcomeSubtitle")}</Text>
         </View>
 
-        <PrimaryButton title="Get Started" onPress={() => navigation.navigate("QuitDate")} />
+        <PrimaryButton title={t("getStarted")} onPress={() => navigation.navigate("QuitDate")} />
       </View>
     </Screen>
   );
