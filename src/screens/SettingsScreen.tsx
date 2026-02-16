@@ -1,55 +1,47 @@
 import React, { useState } from "react";
-import { Text, View, StyleSheet, Pressable } from "react-native";
-import Screen from "../components/Screen";
+import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView } from "react-native";
 import { useTranslation } from "react-i18next";
+import Screen from "../components/Screen";
 import { theme } from "../theme";
+import i18n from "../i18n";
 import { StorageKeys } from "../storage/keys";
-import { getNumber, getString, setNumber, setString } from "../storage/mmkv";
+import { clearStorage, getNumber, getString, setNumber, setString, getBool, setBool } from "../storage/mmkv";
+import { requestNotifPermissions, scheduleDailyMotivation, cancelAllNotifications } from "../notifications";
 
-export default function SettingsScreen() {
-  const { t } = useTranslation();
-  const [tick, setTick] = useState(0);
+function Chip({
+  title,
+  onPress,
+  tone = "default",
+}: {
+  title: string;
+  onPress: () => void;
+  tone?: "default" | "primary" | "danger";
+}) {
+  const borderColor =
+    tone === "primary"
+      ? theme.colors.primary
+      : tone === "danger"
+      ? theme.colors.danger
+      : theme.colors.outline;
 
-  const quitDate = getString(StorageKeys.quitDate) ?? new Date().toISOString().slice(0, 10);
-  const cigsPerDay = getNumber(StorageKeys.cigsPerDay) ?? 12;
-  const pricePerPack = getNumber(StorageKeys.pricePerPack) ?? 12;
-  const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;
+  const textColor =
+    tone === "primary"
+      ? theme.colors.primary
+      : tone === "danger"
+      ? theme.colors.danger
+      : theme.colors.textPrimary;
 
   return (
-    <Screen>
-      <Text style={styles.title}>{t("settings")}</Text>
-
-      <View style={styles.block}>
-        <Row label={t("quitDate")} value={quitDate} />
-        <Row label={t("cigsPerDay")} value={`${cigsPerDay}`} />
-        <Row label={t("pricePerPack")} value={`${pricePerPack} €`} />
-        <Row label={t("cigsPerPack")} value={`${cigsPerPack}`} />
-      </View>
-
-      <View style={{ height: theme.spacing.sm }} />
-
-      <View style={styles.block}>
-        <Text style={styles.section}>{t("language")}</Text>
-        <Text style={styles.hint}>{t("languageAuto")}</Text>
-      </View>
-
-      <View style={{ height: theme.spacing.sm }} />
-
-      <View style={styles.block}>
-        <Text style={styles.section}>{t("editInputs")}</Text>
-        <Text style={styles.hint}>
-          (MVP) Modifie ici en code ou ajoute plus tard un formulaire / stepper.
-        </Text>
-
-        <Chip
-          title={t("startToday")}
-          onPress={() => {
-            setString(StorageKeys.quitDate, new Date().toISOString().slice(0, 10));
-            setTick((x) => x + 1);
-          }}
-        />
-      </View>
-    </Screen>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.chip,
+        { borderColor },
+        pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] },
+      ]}
+    >
+      <Text style={[styles.chipText, { color: textColor }]}>{title}</Text>
+    </Pressable>
   );
 }
 
@@ -62,38 +54,232 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Chip({ title, onPress }: { title: string; onPress: () => void }) {
+export default function SettingsScreen() {
+  const { t } = useTranslation();
+  const [, setTick] = useState(0);
+
+  const quitDate = getString(StorageKeys.quitDate) ?? new Date().toISOString().slice(0, 10);
+  const cigsPerDay = getNumber(StorageKeys.cigsPerDay) ?? 12;
+  const pricePerPack = getNumber(StorageKeys.pricePerPack) ?? 12;
+  const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;
+  const isPremium = getBool(StorageKeys.isPremium) ?? false;
+  const notificationsEnabled = getBool(StorageKeys.notificationsEnabled) ?? true;
+  const language =
+    (getString(StorageKeys.language) as "fr" | "en" | null) ??
+    (i18n.language?.startsWith("fr") ? "fr" : "en");
+
+  const refresh = () => setTick((x) => x + 1);
+
+  const setLang = async (lng: "fr" | "en") => {
+    await i18n.changeLanguage(lng);
+    setString(StorageKeys.language, lng);
+    if (getBool(StorageKeys.notificationsEnabled) ?? true) {
+      await scheduleDailyMotivation(9, 0);
+    }
+    refresh();
+  };
+
+  const toggleNotifications = async () => {
+    const next = !notificationsEnabled;
+    setBool(StorageKeys.notificationsEnabled, next);
+    refresh();
+    try {
+      if (next) {
+        const ok = await requestNotifPermissions();
+        if (!ok) {
+          setBool(StorageKeys.notificationsEnabled, false);
+          refresh();
+          Alert.alert(t("settingsNotifPermissionTitle"), t("settingsNotifPermissionBody"));
+          return;
+        }
+        await scheduleDailyMotivation(9, 0);
+      } else {
+        await cancelAllNotifications();
+      }
+    } catch {
+      setBool(StorageKeys.notificationsEnabled, !next);
+      refresh();
+      Alert.alert(t("settingsNotifErrorTitle"), t("settingsNotifErrorBody"));
+    }
+  };
+
+  const startToday = () => {
+    setString(StorageKeys.quitDate, new Date().toISOString().slice(0, 10));
+    refresh();
+  };
+
+  const bumpCigsPerDay = (delta: number) => {
+    setNumber(StorageKeys.cigsPerDay, Math.max(0, Math.min(80, cigsPerDay + delta)));
+    refresh();
+  };
+
+  const bumpPricePerPack = (delta: number) => {
+    setNumber(StorageKeys.pricePerPack, Math.max(0, Math.min(50, pricePerPack + delta)));
+    refresh();
+  };
+
+  const bumpCigsPerPack = (delta: number) => {
+    setNumber(StorageKeys.cigsPerPack, Math.max(1, Math.min(40, cigsPerPack + delta)));
+    refresh();
+  };
+
+  const restorePurchases = async () => {
+    Alert.alert(t("restore"), t("settingsRestoreNotConnected"));
+  };
+
+  const clearAppData = () => {
+    Alert.alert(t("settingsClearTitle"), t("settingsClearBody"), [
+      { text: t("settingsCancel"), style: "cancel" },
+      {
+        text: t("settingsClearAction"),
+        style: "destructive",
+        onPress: async () => {
+          await cancelAllNotifications();
+          await clearStorage();
+          refresh();
+        },
+      },
+    ]);
+  };
+
+  const notifLabel = notificationsEnabled ? t("settingsEnabled") : t("settingsDisabled");
+
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.9 }]}>
-      <Text style={styles.chipText}>{title}</Text>
-    </Pressable>
+    <Screen>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>{t("settings")}</Text>
+
+        <View style={styles.block}>
+          <Text style={styles.section}>{t("settingsProfile")}</Text>
+          <Row label={t("quitDate")} value={quitDate} />
+          <Row label={t("cigsPerDay")} value={`${cigsPerDay}`} />
+          <Row label={t("pricePerPack")} value={`${pricePerPack} €`} />
+          <Row label={t("cigsPerPack")} value={`${cigsPerPack}`} />
+          <View style={styles.chipsRow}>
+            <Chip title={t("startToday")} onPress={startToday} />
+          </View>
+        </View>
+
+        <View style={styles.block}>
+          <Text style={styles.section}>{t("editInputs")}</Text>
+          <Text style={styles.hint}>{t("settingsQuickEditHint")}</Text>
+          <Text style={styles.subSection}>{t("settingsCigsPerDayLabel")}</Text>
+          <View style={styles.chipsRow}>
+            <Chip title="-1" onPress={() => bumpCigsPerDay(-1)} />
+            <Chip title="+1" onPress={() => bumpCigsPerDay(1)} />
+            <Chip title="+5" onPress={() => bumpCigsPerDay(5)} />
+          </View>
+          <Text style={styles.subSection}>{t("settingsPricePerPackLabel")}</Text>
+          <View style={styles.chipsRow}>
+            <Chip title="-1€" onPress={() => bumpPricePerPack(-1)} />
+            <Chip title="+1€" onPress={() => bumpPricePerPack(1)} />
+          </View>
+          <Text style={styles.subSection}>{t("settingsCigsPerPackLabel")}</Text>
+          <View style={styles.chipsRow}>
+            <Chip title="-1" onPress={() => bumpCigsPerPack(-1)} />
+            <Chip title="+1" onPress={() => bumpCigsPerPack(1)} />
+          </View>
+        </View>
+
+        <View style={styles.block}>
+          <Text style={styles.section}>{t("settingsNotifications")}</Text>
+          <Row label={t("settingsDailyMotivation")} value={notifLabel} />
+          <View style={styles.chipsRow}>
+            <Chip
+              title={notificationsEnabled ? t("settingsDisable") : t("settingsEnable")}
+              onPress={toggleNotifications}
+              tone={notificationsEnabled ? "danger" : "primary"}
+            />
+          </View>
+          <Text style={styles.hint}>{t("settingsNotifScheduledAt")}</Text>
+        </View>
+
+        <View style={styles.block}>
+          <Text style={styles.section}>{t("language")}</Text>
+          <Row label={t("settingsCurrent")} value={language.toUpperCase()} />
+          <View style={styles.chipsRow}>
+            <Chip title="FR" onPress={() => setLang("fr")} tone={language === "fr" ? "primary" : "default"} />
+            <Chip title="EN" onPress={() => setLang("en")} tone={language === "en" ? "primary" : "default"} />
+          </View>
+        </View>
+
+        <View style={styles.block}>
+          <Text style={styles.section}>{t("premium")}</Text>
+          <Row label={t("settingsStatus")} value={isPremium ? t("settingsEnabled") : t("settingsFree")} />
+          <View style={styles.chipsRow}>
+            <Chip title={t("restore")} onPress={restorePurchases} />
+          </View>
+          <Text style={styles.hint}>
+            {Platform.OS === "ios" ? t("settingsSubsIOS") : t("settingsSubsAndroid")}
+          </Text>
+        </View>
+
+        <View style={styles.block}>
+          <Text style={styles.section}>{t("settingsData")}</Text>
+          <Text style={styles.hint}>{t("settingsClearHint")}</Text>
+          <View style={styles.chipsRow}>
+            <Chip title={t("settingsClearAction")} onPress={clearAppData} tone="danger" />
+          </View>
+        </View>
+      </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { color: theme.colors.textPrimary, fontSize: theme.typography.h2.fontSize, fontWeight: "700" },
-
+  content: { paddingBottom: theme.spacing.xl },
+  title: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.h2.fontSize,
+    fontWeight: "900",
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
   block: {
     marginTop: theme.spacing.md,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
     padding: 16,
   },
-
-  section: { color: theme.colors.textPrimary, fontWeight: "700", marginBottom: 8 },
-
-  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10 },
+  section: {
+    color: theme.colors.textPrimary,
+    fontWeight: "900",
+    marginBottom: 8,
+    fontSize: 16,
+  },
+  subSection: {
+    color: theme.colors.textSecondary,
+    marginTop: 12,
+    marginBottom: 8,
+    fontWeight: "800",
+  },
+  hint: {
+    color: theme.colors.textTertiary,
+    marginTop: 10,
+    lineHeight: 18,
+    fontSize: 12,
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.divider,
+  },
   rowLabel: { color: theme.colors.textSecondary },
-  rowValue: { color: theme.colors.textPrimary, fontWeight: "600" },
-
-  hint: { color: theme.colors.textTertiary, marginBottom: 12 },
+  rowValue: { color: theme.colors.textPrimary, fontWeight: "700" },
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 12,
+  },
   chip: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: theme.colors.outline,
     paddingVertical: 10,
     paddingHorizontal: 14,
     alignSelf: "flex-start",
   },
-  chipText: { color: theme.colors.textPrimary, fontWeight: "700" },
+  chipText: { fontWeight: "900", fontSize: 13 },
 });

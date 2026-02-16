@@ -17,6 +17,13 @@ export async function hydrateStorage() {
   hydrated = true;
 }
 
+export async function clearStorage() {
+  await AsyncStorage.multiRemove(allKeys);
+  for (const key of allKeys) {
+    delete cache[key];
+  }
+}
+
 function persist(key: StorageKey, value: string) {
   AsyncStorage.setItem(key, value).catch(() => {
     // Best effort persistence; in-memory cache stays source of truth for current session.

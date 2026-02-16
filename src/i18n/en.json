@@ -33,5 +33,40 @@
   "timeline24h": "24h - Oxygen levels normalize",
   "timeline1week": "1 week - Taste improves",
   "timeline1month": "1 month - Lung function improves",
-  "timeline1monthPremium": "1 month - Lung function improves (Premium)"
+  "timeline1monthPremium": "1 month - Lung function improves (Premium)",
+  "settingsProfile": "Profile",
+  "settingsNotifications": "Notifications",
+  "settingsEnabled": "Enabled",
+  "settingsDisabled": "Disabled",
+  "settingsNotifPermissionTitle": "Notifications",
+  "settingsNotifPermissionBody": "Permission not granted. You can enable notifications in iOS Settings.",
+  "settingsNotifErrorTitle": "Notifications",
+  "settingsNotifErrorBody": "Something went wrong. Please try again.",
+  "settingsData": "Data",
+  "settingsClearHint": "Clears local app data (profile, premium flag, and preferences).",
+  "settingsClearTitle": "Clear app data?",
+  "settingsClearBody": "This action cannot be undone.",
+  "settingsClearAction": "Clear",
+  "settingsCancel": "Cancel",
+
+  "notif": {
+    "daily": {
+      "title": "Keep going 💪",
+      "body": "Every smoke-free day is a win."
+    },
+    "milestone": {
+      "24h": {
+        "title": "24 hours 🎉",
+        "body": "First big step. Keep going."
+      },
+      "7d": {
+        "title": "7 days 💚",
+        "body": "A full week. You’re building momentum."
+      },
+      "30d": {
+        "title": "30 days 🚀",
+        "body": "One month. That’s huge."
+      }
+    }
+  }
 }

@@ -5,7 +5,8 @@ export const StorageKeys = {
   cigsPerPack: "cigsPerPack",
   isPremium: "isPremium", // pour MVP sans RevenueCat
   language: "language",
-  onboardingDone: "onboardingDone" // ✅ nouveau
+  onboardingDone: "onboardingDone",
+  notificationsEnabled: "notificationsEnabled",
 } as const;
 
 export type StorageKey = typeof StorageKeys[keyof typeof StorageKeys];

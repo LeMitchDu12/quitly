@@ -33,5 +33,39 @@
   "timeline24h": "24h - Le taux d'oxygene se normalise",
   "timeline1week": "1 semaine - Le gout s'ameliore",
   "timeline1month": "1 mois - La fonction pulmonaire s'ameliore",
-  "timeline1monthPremium": "1 mois - La fonction pulmonaire s'ameliore (Premium)"
+  "timeline1monthPremium": "1 mois - La fonction pulmonaire s'ameliore (Premium)",
+  "settingsProfile": "Profil",
+  "settingsNotifications": "Notifications",
+  "settingsEnabled": "Activees",
+  "settingsDisabled": "Desactivees",
+  "settingsNotifPermissionTitle": "Notifications",
+  "settingsNotifPermissionBody": "Autorisation refusee. Vous pouvez activer les notifications dans les reglages iOS.",
+  "settingsNotifErrorTitle": "Notifications",
+  "settingsNotifErrorBody": "Une erreur est survenue. Reessaie.",
+  "settingsData": "Donnees",
+  "settingsClearHint": "Efface les donnees locales de l'application (profil, premium et preferences).",
+  "settingsClearTitle": "Effacer les donnees de l'application ?",
+  "settingsClearBody": "Cette action est irreversible.",
+  "settingsClearAction": "Clear",
+  "settingsCancel": "Annuler",
+  "notif": {
+    "daily": {
+      "title": "Continue",
+      "body": "Chaque journee sans cigarette est une victoire."
+    },
+    "milestone": {
+      "24h": {
+        "title": "24 heures",
+        "body": "Premier grand cap. Continue."
+      },
+      "7d": {
+        "title": "7 jours",
+        "body": "Une semaine complete. Tu prends ton rythme."
+      },
+      "30d": {
+        "title": "30 jours",
+        "body": "Un mois. C'est enorme."
+      }
+    }
+  }
 }
