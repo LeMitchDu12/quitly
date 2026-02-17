@@ -1,13 +1,14 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Text, View, StyleSheet } from "react-native";
+import { Text, View, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import Screen from "../components/Screen";
 import LineChart from "../components/LineChart";
+import PaywallModal from "../components/PaywallModal";
 import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
-import { getBool, getNumber, getString } from "../storage/mmkv";
-import { daysSince, moneySaved } from "../utils/calculations";
+import { getBool, getNumber, getString, setBool } from "../storage/mmkv";
+import { cigarettesAvoided, daysSince, moneySaved } from "../utils/calculations";
 import { formatCurrencyEUR } from "../utils/format";
 
 type ProgressProfile = {
@@ -41,6 +42,7 @@ function formatDateForLocale(dateISO: string, locale: string) {
 export default function ProgressScreen() {
   const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<ProgressProfile>(() => readProfile());
+  const [paywallOpen, setPaywallOpen] = useState(false);
   const { isPremium, quitDate, cigsPerDay, pricePerPack, cigsPerPack } = profile;
 
   useFocusEffect(
@@ -51,8 +53,9 @@ export default function ProgressScreen() {
 
   const days = daysSince(quitDate);
   const totalSaved = moneySaved(days, cigsPerDay, cigsPerPack, pricePerPack);
+  const totalAvoided = cigarettesAvoided(days, cigsPerDay);
 
-  const series = useMemo(() => {
+  const savedSeries = useMemo(() => {
     if (days <= 0) {
       const v = moneySaved(0, cigsPerDay, cigsPerPack, pricePerPack);
       return [v, v];
@@ -66,54 +69,178 @@ export default function ProgressScreen() {
     }
     return arr;
   }, [days, cigsPerDay, cigsPerPack, pricePerPack]);
-  const minSaved = Math.min(...series);
-  const maxSaved = Math.max(...series);
+  const cigarettesSeries = useMemo(() => {
+    if (days <= 0) {
+      return [0, 0];
+    }
+    const points = Math.min(days + 1, 90);
+    const arr: number[] = [];
+    for (let i = 0; i < points; i++) {
+      const d = Math.round((i * days) / (points - 1));
+      arr.push(cigarettesAvoided(d, cigsPerDay));
+    }
+    return arr;
+  }, [days, cigsPerDay]);
+
+  const minSaved = Math.min(...savedSeries);
+  const maxSaved = Math.max(...savedSeries);
+  const maxCigarettes = Math.max(...cigarettesSeries);
   const quitDateLabel = formatDateForLocale(quitDate, i18n.language || "fr-FR");
+  const projections = [
+    { daysAhead: 30, value: moneySaved(days + 30, cigsPerDay, cigsPerPack, pricePerPack) },
+    { daysAhead: 90, value: moneySaved(days + 90, cigsPerDay, cigsPerPack, pricePerPack) },
+    { daysAhead: 365, value: moneySaved(days + 365, cigsPerDay, cigsPerPack, pricePerPack) },
+  ];
+  const maxProjection = Math.max(...projections.map((p) => p.value), 1);
+  const savedLabel = formatCurrencyEUR(totalSaved);
+
+  const unlockPremium = () => {
+    setBool(StorageKeys.isPremium, true);
+    setProfile((p) => ({ ...p, isPremium: true }));
+    setPaywallOpen(false);
+  };
 
   return (
     <Screen>
-      <Text style={styles.title}>{t("progress")}</Text>
-
-      <View style={styles.chartBox}>
-        <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>{t("chartTitleSavings")}</Text>
-          <Text style={styles.chartValue}>{formatCurrencyEUR(totalSaved)}</Text>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.headerRow}>
+          <Text style={styles.brand}>{t("appName")}</Text>
+          <Pressable style={styles.pill} onPress={() => setPaywallOpen(true)}>
+            <Text style={[styles.pillText, isPremium && { color: theme.colors.primary }]}>
+              {isPremium ? `${t("premium")} ✓` : t("premium")}
+            </Text>
+          </Pressable>
         </View>
 
-        {isPremium ? (
-          <LineChart width={320} height={180} data={series} />
-        ) : (
-          <Text style={styles.locked}>{t("chartsPremium")}</Text>
-        )}
+        <Text style={styles.title}>{t("progress")}</Text>
 
-        {isPremium ? (
-          <View style={styles.legendWrap}>
-            <View style={styles.legendRow}>
-              <View style={styles.legendLeft}>
-                <View style={styles.legendDot} />
-                <Text style={styles.legendText}>{t("chartLegendSinceDate", { date: quitDateLabel })}</Text>
+        <View style={styles.chartBox}>
+          <View style={styles.chartHeader}>
+            <Text style={styles.chartTitle}>{t("chartTitleSavings")}</Text>
+            <Text style={styles.chartValue}>{formatCurrencyEUR(totalSaved)}</Text>
+          </View>
+
+          {isPremium ? (
+            <LineChart width={320} height={180} data={savedSeries} />
+          ) : (
+            <Text style={styles.locked}>{t("chartsPremium")}</Text>
+          )}
+
+          {isPremium ? (
+            <View style={styles.legendWrap}>
+              <View style={styles.legendRow}>
+                <View style={styles.legendLeft}>
+                  <View style={styles.legendDot} />
+                  <Text style={styles.legendText}>{t("chartLegendSinceDate", { date: quitDateLabel })}</Text>
+                </View>
+              </View>
+              <View style={styles.legendRow}>
+                <Text style={styles.legendSubText}>{t("chartLegendMin", { value: formatCurrencyEUR(minSaved) })}</Text>
+                <Text style={styles.legendSubText}>{t("chartLegendMax", { value: formatCurrencyEUR(maxSaved) })}</Text>
               </View>
             </View>
-            <View style={styles.legendRow}>
-              <Text style={styles.legendSubText}>{t("chartLegendMin", { value: formatCurrencyEUR(minSaved) })}</Text>
-              <Text style={styles.legendSubText}>{t("chartLegendMax", { value: formatCurrencyEUR(maxSaved) })}</Text>
-            </View>
-          </View>
-        ) : null}
-      </View>
+          ) : null}
+        </View>
 
-      <View style={styles.timeline}>
-        <Text style={styles.item}>{t("timeline24h")}</Text>
-        <Text style={styles.item}>{t("timeline1week")}</Text>
-        <Text style={[styles.item, !isPremium && styles.lockedText]}>
-          {isPremium ? t("timeline1month") : t("timeline1monthPremium")}
-        </Text>
-      </View>
+        <View style={styles.chartBox}>
+          <View style={styles.chartHeader}>
+            <Text style={styles.chartTitle}>{t("chartTitleCigarettes")}</Text>
+            <Text style={styles.chartValue}>{totalAvoided.toLocaleString(i18n.language || "fr-FR")}</Text>
+          </View>
+
+          {isPremium ? (
+            <LineChart width={320} height={180} data={cigarettesSeries} />
+          ) : (
+            <Text style={styles.locked}>{t("chartsPremium")}</Text>
+          )}
+
+          {isPremium ? (
+            <View style={styles.legendWrap}>
+              <View style={styles.legendRow}>
+                <View style={styles.legendLeft}>
+                  <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
+                  <Text style={styles.legendText}>{t("chartLegendSinceDate", { date: quitDateLabel })}</Text>
+                </View>
+              </View>
+              <View style={styles.legendRow}>
+                <Text style={styles.legendSubText}>{t("chartLegendMaxCigarettes", { value: maxCigarettes.toLocaleString(i18n.language || "fr-FR") })}</Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.chartBox}>
+          <View style={styles.chartHeader}>
+            <Text style={styles.chartTitle}>{t("projectionSavingsTitle")}</Text>
+            <Text style={styles.chartValue}>{t("projectionSavingsSubtitle")}</Text>
+          </View>
+
+          {isPremium ? (
+            <View>
+              {projections.map((projection) => {
+                const pct = Math.max(6, Math.round((projection.value / maxProjection) * 100));
+                return (
+                  <View key={projection.daysAhead} style={styles.projectionRow}>
+                    <Text style={styles.projectionLabel}>{t("projectionInDays", { days: projection.daysAhead })}</Text>
+                    <Text style={styles.projectionValue}>{formatCurrencyEUR(projection.value)}</Text>
+                    <View style={styles.projectionTrack}>
+                      <View style={[styles.projectionFill, { width: `${pct}%` }]} />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.locked}>{t("chartsPremium")}</Text>
+          )}
+        </View>
+
+        <View style={styles.timeline}>
+          <Text style={styles.item}>{t("timeline24h")}</Text>
+          <Text style={styles.item}>{t("timeline1week")}</Text>
+          <Text style={[styles.item, !isPremium && styles.lockedText]}>
+            {isPremium ? t("timeline1month") : t("timeline1monthPremium")}
+          </Text>
+        </View>
+      </ScrollView>
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        onUnlock={unlockPremium}
+        savedAmountLabel={savedLabel}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  content: { paddingBottom: theme.spacing.xl },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  brand: {
+    color: theme.colors.textPrimary,
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  pill: {
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    backgroundColor: "transparent",
+  },
+  pillText: {
+    color: theme.colors.textSecondary,
+    fontWeight: "800",
+    fontSize: 13,
+  },
   title: { color: theme.colors.textPrimary, fontSize: theme.typography.h2.fontSize, fontWeight: "800" },
   chartBox: {
     marginTop: theme.spacing.md,
@@ -136,6 +263,20 @@ const styles = StyleSheet.create({
   },
   legendText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "700" },
   legendSubText: { color: theme.colors.textTertiary, fontSize: 12 },
+  projectionRow: { marginBottom: 14 },
+  projectionLabel: { color: theme.colors.textSecondary, fontSize: 12, marginBottom: 4 },
+  projectionValue: { color: theme.colors.textPrimary, fontWeight: "700", marginBottom: 6 },
+  projectionTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: theme.colors.divider,
+    overflow: "hidden",
+  },
+  projectionFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: theme.colors.primary,
+  },
   timeline: { marginTop: theme.spacing.md },
   item: { color: theme.colors.textPrimary, marginBottom: 12 },
   lockedText: { color: theme.colors.textTertiary },
