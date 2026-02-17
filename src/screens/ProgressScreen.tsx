@@ -8,9 +8,10 @@ import PaywallModal from "../components/PaywallModal";
 import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
 import { getBool, getNumber, getString, setBool } from "../storage/mmkv";
-import { cigarettesAvoided, daysSince, moneySaved } from "../utils/calculations";
+import { cigarettesAvoided, daysSince, moneySaved, moneySavedFromCigarettes } from "../utils/calculations";
 import { formatCurrencyEUR } from "../utils/format";
 import { todayLocalISODate } from "../utils/date";
+import { DailyCheckin, lastRelapseDate, readDailyCheckins, smokedSinceUntil, totalSmokedSince } from "../storage/checkins";
 
 type ProgressProfile = {
   isPremium: boolean;
@@ -40,60 +41,88 @@ function formatDateForLocale(dateISO: string, locale: string) {
   }).format(d);
 }
 
+function addDaysISO(dateISO: string, days: number) {
+  const d = new Date(`${dateISO}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function ProgressScreen() {
   const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<ProgressProfile>(() => readProfile());
+  const [checkins, setCheckins] = useState<DailyCheckin[]>(() => readDailyCheckins());
   const [paywallOpen, setPaywallOpen] = useState(false);
   const { isPremium, quitDate, cigsPerDay, pricePerPack, cigsPerPack } = profile;
 
   useFocusEffect(
     useCallback(() => {
       setProfile(readProfile());
+      setCheckins(readDailyCheckins());
     }, [])
   );
 
   const days = daysSince(quitDate);
-  const totalSaved = moneySaved(days, cigsPerDay, cigsPerPack, pricePerPack);
-  const totalAvoided = cigarettesAvoided(days, cigsPerDay);
+  const smokedTotal = totalSmokedSince(checkins, quitDate);
+  const plannedAvoided = cigarettesAvoided(days, cigsPerDay);
+  const totalAvoided = Math.max(0, plannedAvoided - smokedTotal);
+  const totalSaved = moneySavedFromCigarettes(totalAvoided, cigsPerPack, pricePerPack);
+
+  const sampledDays = useMemo(() => {
+    if (days <= 0) return [0, 0];
+    const points = Math.min(days + 1, 120);
+    const samples: number[] = [];
+    for (let i = 0; i < points; i += 1) {
+      const d = Math.round((i * days) / (points - 1));
+      samples.push(d);
+    }
+    return samples;
+  }, [days]);
 
   const savedSeries = useMemo(() => {
-    if (days <= 0) {
-      const v = moneySaved(0, cigsPerDay, cigsPerPack, pricePerPack);
-      return [v, v];
-    }
+    return sampledDays.map((d) => {
+      const sampleDate = addDaysISO(quitDate, d);
+      const smokedUntil = smokedSinceUntil(checkins, quitDate, sampleDate);
+      const avoided = Math.max(0, cigarettesAvoided(d, cigsPerDay) - smokedUntil);
+      return moneySavedFromCigarettes(avoided, cigsPerPack, pricePerPack);
+    });
+  }, [sampledDays, quitDate, checkins, cigsPerDay, cigsPerPack, pricePerPack]);
 
-    const points = Math.min(days + 1, 90);
-    const arr: number[] = [];
-    for (let i = 0; i < points; i++) {
-      const d = Math.round((i * days) / (points - 1));
-      arr.push(moneySaved(d, cigsPerDay, cigsPerPack, pricePerPack));
-    }
-    return arr;
-  }, [days, cigsPerDay, cigsPerPack, pricePerPack]);
   const cigarettesSeries = useMemo(() => {
-    if (days <= 0) {
-      return [0, 0];
-    }
-    const points = Math.min(days + 1, 90);
-    const arr: number[] = [];
-    for (let i = 0; i < points; i++) {
-      const d = Math.round((i * days) / (points - 1));
-      arr.push(cigarettesAvoided(d, cigsPerDay));
-    }
-    return arr;
-  }, [days, cigsPerDay]);
+    return sampledDays.map((d) => {
+      const sampleDate = addDaysISO(quitDate, d);
+      const smokedUntil = smokedSinceUntil(checkins, quitDate, sampleDate);
+      return Math.max(0, cigarettesAvoided(d, cigsPerDay) - smokedUntil);
+    });
+  }, [sampledDays, quitDate, checkins, cigsPerDay]);
 
   const minSaved = Math.min(...savedSeries);
   const maxSaved = Math.max(...savedSeries);
   const maxCigarettes = Math.max(...cigarettesSeries);
   const quitDateLabel = formatDateForLocale(quitDate, i18n.language || "fr-FR");
   const projections = [
-    { daysAhead: 30, value: moneySaved(days + 30, cigsPerDay, cigsPerPack, pricePerPack) },
-    { daysAhead: 90, value: moneySaved(days + 90, cigsPerDay, cigsPerPack, pricePerPack) },
-    { daysAhead: 365, value: moneySaved(days + 365, cigsPerDay, cigsPerPack, pricePerPack) },
+    {
+      daysAhead: 30,
+      value: moneySaved(days + 30, cigsPerDay, cigsPerPack, pricePerPack),
+    },
+    {
+      daysAhead: 90,
+      value: moneySaved(days + 90, cigsPerDay, cigsPerPack, pricePerPack),
+    },
+    {
+      daysAhead: 365,
+      value: moneySaved(days + 365, cigsPerDay, cigsPerPack, pricePerPack),
+    },
   ];
   const maxProjection = Math.max(...projections.map((p) => p.value), 1);
   const savedLabel = formatCurrencyEUR(totalSaved);
+
+  const relapseDate = lastRelapseDate(checkins, quitDate);
+  const streakAnchor = relapseDate ?? quitDate;
+  const streakDays = daysSince(streakAnchor);
+  const badgeMilestones = [3, 7, 14, 30, 90];
 
   const unlockPremium = () => {
     setBool(StorageKeys.isPremium, true);
@@ -164,7 +193,9 @@ export default function ProgressScreen() {
                 </View>
               </View>
               <View style={styles.legendRow}>
-                <Text style={styles.legendSubText}>{t("chartLegendMaxCigarettes", { value: maxCigarettes.toLocaleString(i18n.language || "fr-FR") })}</Text>
+                <Text style={styles.legendSubText}>
+                  {t("chartLegendMaxCigarettes", { value: maxCigarettes.toLocaleString(i18n.language || "fr-FR") })}
+                </Text>
               </View>
             </View>
           ) : null}
@@ -193,6 +224,30 @@ export default function ProgressScreen() {
             </View>
           ) : (
             <Text style={styles.locked}>{t("chartsPremium")}</Text>
+          )}
+        </View>
+
+        <View style={styles.chartBox}>
+          <Text style={styles.chartTitle}>{t("relapseBadgesTitle")}</Text>
+          <Text style={styles.legendSubText}>{t("relapseBadgesSubtitle", { days: streakDays })}</Text>
+          <Text style={styles.legendSubText}>
+            {t("relapseBadgesAnchorDate", { date: formatDateForLocale(streakAnchor, i18n.language || "fr-FR") })}
+          </Text>
+
+          {isPremium ? (
+            <View style={styles.badgesWrap}>
+              {badgeMilestones.map((milestone) => {
+                const unlocked = streakDays >= milestone;
+                return (
+                  <View key={milestone} style={[styles.badge, unlocked ? styles.badgeOn : styles.badgeOff]}>
+                    <Text style={styles.badgeIcon}>{unlocked ? "🏆" : "🔒"}</Text>
+                    <Text style={styles.badgeText}>{t("relapseBadgeDays", { days: milestone })}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.locked}>{t("premiumRelapseInsightsTeaser")}</Text>
           )}
         </View>
 
@@ -250,9 +305,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   chartHeader: { marginBottom: 10 },
-  chartTitle: { color: theme.colors.textSecondary },
+  chartTitle: { color: theme.colors.textSecondary, fontWeight: "700" },
   chartValue: { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "800", marginTop: 4 },
-  locked: { color: theme.colors.textSecondary, textAlign: "center", paddingVertical: 70 },
+  locked: { color: theme.colors.textSecondary, textAlign: "center", paddingVertical: 20 },
   legendWrap: { marginTop: 10 },
   legendRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 6 },
   legendLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -263,7 +318,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
   },
   legendText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "700" },
-  legendSubText: { color: theme.colors.textTertiary, fontSize: 12 },
+  legendSubText: { color: theme.colors.textTertiary, fontSize: 12, marginTop: 4 },
   projectionRow: { marginBottom: 14 },
   projectionLabel: { color: theme.colors.textSecondary, fontSize: 12, marginBottom: 4 },
   projectionValue: { color: theme.colors.textPrimary, fontWeight: "700", marginBottom: 6 },
@@ -278,6 +333,24 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: theme.colors.primary,
   },
+  badgesWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  badge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  badgeOn: { backgroundColor: theme.colors.primary },
+  badgeOff: { backgroundColor: theme.colors.divider },
+  badgeIcon: { fontSize: 14 },
+  badgeText: { color: theme.colors.textPrimary, fontWeight: "700", fontSize: 12 },
   timeline: { marginTop: theme.spacing.md },
   item: { color: theme.colors.textPrimary, marginBottom: 12 },
   lockedText: { color: theme.colors.textTertiary },

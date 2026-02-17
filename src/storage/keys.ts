@@ -7,6 +7,7 @@ export const StorageKeys = {
   language: "language",
   onboardingDone: "onboardingDone",
   notificationsEnabled: "notificationsEnabled",
+  dailyCheckins: "dailyCheckins",
 } as const;
 
 export type StorageKey = typeof StorageKeys[keyof typeof StorageKeys];

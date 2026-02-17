@@ -31,17 +31,16 @@ export default function PaywallModal({
           <Text style={styles.subtitle}>{t("paywallSubtitle", { amount: savedAmountLabel })}</Text>
 
           <View style={styles.list}>
-            <Text style={styles.li}>✔ {t("featCharts")}</Text>
-            <Text style={styles.li}>✔ {t("featTimeline")}</Text>
-            <Text style={styles.li}>✔ {t("featUnlimited")}</Text>
-            <Text style={styles.li}>✔ {t("featUpdates")}</Text>
+            <Text style={styles.li}>✓ {t("featCharts")}</Text>
+            <Text style={styles.li}>✓ {t("featTimeline")}</Text>
+            <Text style={styles.li}>✓ {t("featUnlimited")}</Text>
+            <Text style={styles.li}>✓ {t("featRelapseBadges")}</Text>
+            <Text style={styles.li}>✓ {t("featUpdates")}</Text>
           </View>
 
           <View style={{ height: 16 }} />
           <PrimaryButton title={t("unlock")} onPress={onUnlock} />
-          <Text style={styles.legal}>
-            Auto-renewable subscription. Cancel anytime in Apple settings.
-          </Text>
+          <Text style={styles.legal}>{t("paywallLegalLine1")}</Text>
         </View>
       </View>
     </Modal>
