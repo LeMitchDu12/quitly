@@ -10,11 +10,12 @@ import { RootStackParamList } from "../navigation/Root";
 import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
 import { getNumber, getString, setNumber, setString } from "../storage/mmkv";
+import { toLocalISODate, todayLocalISODate } from "../utils/date";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SettingsEdit">;
 
 function toISODate(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d);
 }
 
 function clampToToday(d: Date) {
@@ -68,7 +69,7 @@ function Stepper({
 export default function SettingsEditScreen({ navigation }: Props) {
   const { t } = useTranslation();
 
-  const initialQuitDate = getString(StorageKeys.quitDate) ?? new Date().toISOString().slice(0, 10);
+  const initialQuitDate = getString(StorageKeys.quitDate) ?? todayLocalISODate();
   const initialDate = parseISODate(initialQuitDate);
 
   const [date, setDate] = useState<Date>(initialDate);
@@ -153,19 +154,19 @@ export default function SettingsEditScreen({ navigation }: Props) {
           <Stepper label={t("pricePerPack")} value={pricePerPack} onChange={setPricePerPack} min={0} max={50} suffix="EUR" />
           <Stepper label={t("cigsPerPack")} value={cigsPerPack} onChange={setCigsPerPack} min={1} max={40} />
         </View>
+      </ScrollView>
 
-        <View style={{ height: theme.spacing.md }} />
-
+      <View style={styles.ctaBar}>
         <SecondaryButton title={t("settingsCancel")} onPress={onCancel} />
         <View style={{ height: theme.spacing.sm }} />
         <PrimaryButton title={t("settingsSave")} onPress={onSave} />
-      </ScrollView>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: theme.spacing.xl },
+  content: { paddingBottom: 140 },
   title: {
     color: theme.colors.textPrimary,
     fontSize: theme.typography.h2.fontSize,
@@ -237,4 +238,16 @@ const styles = StyleSheet.create({
   },
   stepBtnText: { color: theme.colors.textPrimary, fontSize: 22, fontWeight: "700" },
   stepValue: { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700" },
+  ctaBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    backgroundColor: theme.colors.background,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.divider,
+  },
 });

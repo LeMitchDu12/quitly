@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Pressable } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import Screen from "../components/Screen";
 import StatCard from "../components/StatCard";
 import SecondaryButton from "../components/SecondaryButton";
@@ -10,6 +11,7 @@ import { StorageKeys } from "../storage/keys";
 import { getBool, getNumber, getString, setBool, setString } from "../storage/mmkv";
 import { daysSince, cigarettesAvoided, moneySaved, timeGainedHours } from "../utils/calculations";
 import { formatCurrencyEUR } from "../utils/format";
+import { todayLocalISODate } from "../utils/date";
 
 type Profile = {
   quitDate: string;
@@ -24,16 +26,24 @@ export default function HomeScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  useEffect(() => {
-    // MMKV sync => pas besoin d'await
-    const quitDate = getString(StorageKeys.quitDate) ?? new Date().toISOString().slice(0, 10);
+  const loadProfile = () => {
+    const quitDate = getString(StorageKeys.quitDate) ?? todayLocalISODate();
     const cigsPerDay = getNumber(StorageKeys.cigsPerDay) ?? 12;
     const pricePerPack = getNumber(StorageKeys.pricePerPack) ?? 12;
     const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;
     const isPremium = getBool(StorageKeys.isPremium) ?? false;
-
     setProfile({ quitDate, cigsPerDay, pricePerPack, cigsPerPack, isPremium });
+  };
+
+  useEffect(() => {
+    loadProfile();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfile();
+    }, [])
+  );
 
   const stats = useMemo(() => {
     if (!profile) return null;
@@ -64,7 +74,7 @@ export default function HomeScreen() {
   };
 
   const resetToToday = () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocalISODate();
     setString(StorageKeys.quitDate, today);
     setProfile((p) => (p ? { ...p, quitDate: today } : p));
   };

@@ -10,13 +10,14 @@ import { StorageKeys } from "../../storage/keys";
 import { getNumber, getString } from "../../storage/mmkv";
 import { moneySaved } from "../../utils/calculations";
 import { formatCurrencyEUR } from "../../utils/format";
+import { todayLocalISODate } from "../../utils/date";
 import OnboardingHeader from "../../components/OnboardingHeader";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Projection">;
 
 export default function ProjectionScreen({ navigation }: Props) {
   const { t } = useTranslation();
-  const quitDate = getString(StorageKeys.quitDate) ?? new Date().toISOString().slice(0, 10);
+  const quitDate = getString(StorageKeys.quitDate) ?? todayLocalISODate();
   const cigsPerDay = getNumber(StorageKeys.cigsPerDay) ?? 12;
   const pricePerPack = getNumber(StorageKeys.pricePerPack) ?? 12;
   const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;

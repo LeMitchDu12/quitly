@@ -11,6 +11,7 @@ import { RootStackParamList } from "../navigation/Root";
 import { StorageKeys } from "../storage/keys";
 import { clearStorage, getNumber, getString, getBool, setBool, setString } from "../storage/mmkv";
 import { requestNotifPermissions, scheduleDailyMotivation, cancelAllNotifications } from "../notifications";
+import { todayLocalISODate } from "../utils/date";
 
 function Chip({
   title,
@@ -69,7 +70,7 @@ export default function SettingsScreen() {
     }, [])
   );
 
-  const quitDate = getString(StorageKeys.quitDate) ?? new Date().toISOString().slice(0, 10);
+  const quitDate = getString(StorageKeys.quitDate) ?? todayLocalISODate();
   const cigsPerDay = getNumber(StorageKeys.cigsPerDay) ?? 12;
   const pricePerPack = getNumber(StorageKeys.pricePerPack) ?? 12;
   const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;

@@ -10,6 +10,7 @@ import { StorageKeys } from "../storage/keys";
 import { getBool, getNumber, getString, setBool } from "../storage/mmkv";
 import { cigarettesAvoided, daysSince, moneySaved } from "../utils/calculations";
 import { formatCurrencyEUR } from "../utils/format";
+import { todayLocalISODate } from "../utils/date";
 
 type ProgressProfile = {
   isPremium: boolean;
@@ -22,7 +23,7 @@ type ProgressProfile = {
 function readProfile(): ProgressProfile {
   return {
     isPremium: getBool(StorageKeys.isPremium) ?? false,
-    quitDate: getString(StorageKeys.quitDate) ?? new Date().toISOString().slice(0, 10),
+    quitDate: getString(StorageKeys.quitDate) ?? todayLocalISODate(),
     cigsPerDay: getNumber(StorageKeys.cigsPerDay) ?? 12,
     pricePerPack: getNumber(StorageKeys.pricePerPack) ?? 12,
     cigsPerPack: getNumber(StorageKeys.cigsPerPack) ?? 20,

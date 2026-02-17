@@ -12,11 +12,12 @@ import { StorageKeys } from "../../storage/keys";
 import { getNumber, setString } from "../../storage/mmkv";
 import { moneySaved } from "../../utils/calculations";
 import { formatCurrencyEUR } from "../../utils/format";
+import { toLocalISODate } from "../../utils/date";
 
 type Props = NativeStackScreenProps<RootStackParamList, "QuitDate">;
 
 function toISODate(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d);
 }
 function clampToToday(d: Date) {
   const now = new Date();
