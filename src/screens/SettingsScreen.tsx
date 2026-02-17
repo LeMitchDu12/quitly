@@ -1,11 +1,15 @@
 import React, { useState } from "react";
 import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView } from "react-native";
 import { useTranslation } from "react-i18next";
+import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Screen from "../components/Screen";
 import { theme } from "../theme";
 import i18n from "../i18n";
+import { RootStackParamList } from "../navigation/Root";
 import { StorageKeys } from "../storage/keys";
-import { clearStorage, getNumber, getString, setNumber, setString, getBool, setBool } from "../storage/mmkv";
+import { clearStorage, getNumber, getString, getBool, setBool, setString } from "../storage/mmkv";
 import { requestNotifPermissions, scheduleDailyMotivation, cancelAllNotifications } from "../notifications";
 
 function Chip({
@@ -56,7 +60,14 @@ function Row({ label, value }: { label: string; value: string }) {
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [, setTick] = useState(0);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setTick((x) => x + 1);
+    }, [])
+  );
 
   const quitDate = getString(StorageKeys.quitDate) ?? new Date().toISOString().slice(0, 10);
   const cigsPerDay = getNumber(StorageKeys.cigsPerDay) ?? 12;
@@ -103,26 +114,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const startToday = () => {
-    setString(StorageKeys.quitDate, new Date().toISOString().slice(0, 10));
-    refresh();
-  };
-
-  const bumpCigsPerDay = (delta: number) => {
-    setNumber(StorageKeys.cigsPerDay, Math.max(0, Math.min(80, cigsPerDay + delta)));
-    refresh();
-  };
-
-  const bumpPricePerPack = (delta: number) => {
-    setNumber(StorageKeys.pricePerPack, Math.max(0, Math.min(50, pricePerPack + delta)));
-    refresh();
-  };
-
-  const bumpCigsPerPack = (delta: number) => {
-    setNumber(StorageKeys.cigsPerPack, Math.max(1, Math.min(40, cigsPerPack + delta)));
-    refresh();
-  };
-
   const restorePurchases = async () => {
     Alert.alert(t("restore"), t("settingsRestoreNotConnected"));
   };
@@ -153,31 +144,10 @@ export default function SettingsScreen() {
           <Text style={styles.section}>{t("settingsProfile")}</Text>
           <Row label={t("quitDate")} value={quitDate} />
           <Row label={t("cigsPerDay")} value={`${cigsPerDay}`} />
-          <Row label={t("pricePerPack")} value={`${pricePerPack} €`} />
+          <Row label={t("pricePerPack")} value={`${pricePerPack} EUR`} />
           <Row label={t("cigsPerPack")} value={`${cigsPerPack}`} />
           <View style={styles.chipsRow}>
-            <Chip title={t("startToday")} onPress={startToday} />
-          </View>
-        </View>
-
-        <View style={styles.block}>
-          <Text style={styles.section}>{t("editInputs")}</Text>
-          <Text style={styles.hint}>{t("settingsQuickEditHint")}</Text>
-          <Text style={styles.subSection}>{t("settingsCigsPerDayLabel")}</Text>
-          <View style={styles.chipsRow}>
-            <Chip title="-1" onPress={() => bumpCigsPerDay(-1)} />
-            <Chip title="+1" onPress={() => bumpCigsPerDay(1)} />
-            <Chip title="+5" onPress={() => bumpCigsPerDay(5)} />
-          </View>
-          <Text style={styles.subSection}>{t("settingsPricePerPackLabel")}</Text>
-          <View style={styles.chipsRow}>
-            <Chip title="-1€" onPress={() => bumpPricePerPack(-1)} />
-            <Chip title="+1€" onPress={() => bumpPricePerPack(1)} />
-          </View>
-          <Text style={styles.subSection}>{t("settingsCigsPerPackLabel")}</Text>
-          <View style={styles.chipsRow}>
-            <Chip title="-1" onPress={() => bumpCigsPerPack(-1)} />
-            <Chip title="+1" onPress={() => bumpCigsPerPack(1)} />
+            <Chip title={t("settingsEditButton")} onPress={() => navigation.navigate("SettingsEdit")} />
           </View>
         </View>
 
@@ -246,12 +216,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: 8,
     fontSize: 16,
-  },
-  subSection: {
-    color: theme.colors.textSecondary,
-    marginTop: 12,
-    marginBottom: 8,
-    fontWeight: "800",
   },
   hint: {
     color: theme.colors.textTertiary,

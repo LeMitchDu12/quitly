@@ -85,6 +85,14 @@
   "settingsClearBody": "Cette action est irreversible.",
   "settingsClearAction": "Clear",
   "settingsCancel": "Annuler",
+  "settingsYesterday": "Hier",
+  "settingsSelectedDate": "Date selectionnee",
+  "settingsDateHelperIOS": "Faites defiler pour ajuster.",
+  "settingsDateHelperAndroid": "Touchez 'Definir la date d'arret' pour ouvrir le calendrier.",
+  "settingsDone": "Termine",
+  "settingsEditButton": "Modifier",
+  "settingsEditTitle": "Modifier le profil",
+  "settingsSave": "Sauver",
   "notif": {
     "daily": {
       "title": "Continue",

@@ -85,6 +85,14 @@
   "settingsClearBody": "This action cannot be undone.",
   "settingsClearAction": "Clear",
   "settingsCancel": "Cancel",
+  "settingsYesterday": "Yesterday",
+  "settingsSelectedDate": "Selected date",
+  "settingsDateHelperIOS": "Scroll to adjust.",
+  "settingsDateHelperAndroid": "Tap 'Set quit date' to open the calendar.",
+  "settingsDone": "Done",
+  "settingsEditButton": "Edit",
+  "settingsEditTitle": "Edit profile",
+  "settingsSave": "Save",
 
   "notif": {
     "daily": {
