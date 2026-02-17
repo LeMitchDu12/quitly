@@ -1,83 +1,222 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, Platform } from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, StyleSheet, Pressable, Platform, ScrollView } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../../navigation/Root";
 import Screen from "../../components/Screen";
 import PrimaryButton from "../../components/PrimaryButton";
 import SecondaryButton from "../../components/SecondaryButton";
+import OnboardingHeader from "../../components/OnboardingHeader";
 import { theme } from "../../theme";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../navigation/Root";
 import { StorageKeys } from "../../storage/keys";
-import { getString, setString } from "../../storage/mmkv";
-import { useTranslation } from "react-i18next";
+import { getNumber, setString } from "../../storage/mmkv";
+import { moneySaved } from "../../utils/calculations";
+import { formatCurrencyEUR } from "../../utils/format";
 
 type Props = NativeStackScreenProps<RootStackParamList, "QuitDate">;
 
-// MVP sans DatePicker natif pour rester 100% copiable.
-// Tu peux remplacer par @react-native-community/datetimepicker plus tard.
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+function toISODate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+function clampToToday(d: Date) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return x > today ? today : x;
+}
+function addDays(base: Date, delta: number) {
+  const d = new Date(base);
+  d.setDate(d.getDate() + delta);
+  return d;
 }
 
 export default function QuitDateScreen({ navigation }: Props) {
-  const { t } = useTranslation();
-  const [quitDate, setQuitDate] = useState(getString(StorageKeys.quitDate) ?? todayISO());
+  const today = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }, []);
 
-  const saveAndNext = () => {
-    setString(StorageKeys.quitDate, quitDate);
+  const [date, setDate] = useState<Date>(today);
+  const [showPicker, setShowPicker] = useState(Platform.OS === "ios");
+
+  const pretty = useMemo(() => {
+    return date.toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }, [date]);
+
+  const isToday = useMemo(() => toISODate(date) === toISODate(today), [date, today]);
+  const isYesterday = useMemo(() => toISODate(date) === toISODate(addDays(today, -1)), [date, today]);
+
+  const cigsPerDay = getNumber(StorageKeys.cigsPerDay) ?? 12;
+  const pricePerPack = getNumber(StorageKeys.pricePerPack) ?? 12;
+  const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;
+
+  const preview7 = useMemo(() => {
+    const saved = moneySaved(7, cigsPerDay, cigsPerPack, pricePerPack);
+    return formatCurrencyEUR(saved);
+  }, [cigsPerDay, cigsPerPack, pricePerPack]);
+
+  const onChange = (_: any, selected?: Date) => {
+    if (Platform.OS === "android") setShowPicker(false);
+    if (!selected) return;
+    setDate(clampToToday(selected));
+  };
+
+  const saveAndContinue = () => {
+    setString(StorageKeys.quitDate, toISODate(date));
     navigation.navigate("Consumption");
   };
 
   return (
     <Screen>
-      <Text style={styles.title}>{t("quitDateTitle")}</Text>
-      <Text style={styles.subtitle}>{t("quitDateSubtitle")}</Text>
+      {/* Scrollable content */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 120 }} // espace pour le CTA fixe
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <OnboardingHeader step={1} total={4} hideBack />
 
-      <View style={styles.card}>
-        <Text style={styles.label}>{t("quitDateLabel")}</Text>
+        <Text style={styles.title}>When did you stop smoking?</Text>
+        <Text style={styles.subtitle}>Pick your quit date. You can change it later.</Text>
 
-        <Pressable
-          style={styles.input}
-          onPress={() => {
-            // Simple: toggle between today and yesterday for MVP.
-            // Remplace par DatePicker ensuite.
-            const d = new Date();
-            d.setDate(d.getDate() - 1);
-            const yesterday = d.toISOString().slice(0, 10);
-            setQuitDate((prev) => (prev === todayISO() ? yesterday : todayISO()));
-          }}
-        >
-          <Text style={styles.value}>{quitDate}</Text>
-          <Text style={styles.hint}>
-            {Platform.OS === "ios" ? t("tapToToggle") : t("tapToToggle")}
+        <View style={styles.quickRow}>
+          <Pressable
+            onPress={() => setDate(today)}
+            style={({ pressed }) => [
+              styles.quickChip,
+              isToday && styles.quickChipActive,
+              pressed && { opacity: 0.9 },
+            ]}
+          >
+            <Text style={[styles.quickText, isToday && styles.quickTextActive]}>Today</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setDate(addDays(today, -1))}
+            style={({ pressed }) => [
+              styles.quickChip,
+              isYesterday && styles.quickChipActive,
+              pressed && { opacity: 0.9 },
+            ]}
+          >
+            <Text style={[styles.quickText, isYesterday && styles.quickTextActive]}>Yesterday</Text>
+          </Pressable>
+
+          {Platform.OS === "android" && (
+            <Pressable
+              onPress={() => setShowPicker(true)}
+              style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.9 }]}
+            >
+              <Text style={styles.quickText}>Pick a date</Text>
+            </Pressable>
+          )}
+        </View>
+
+        <View style={styles.dateCard}>
+          <Text style={styles.dateLabel}>Selected date</Text>
+          <Text style={styles.dateBig}>{pretty}</Text>
+          <Text style={styles.helper}>
+            {Platform.OS === "ios" ? "Scroll to adjust." : "Tap “Pick a date” to open the calendar."}
           </Text>
-        </Pressable>
+        </View>
+
+        <View style={styles.previewCard}>
+          <Text style={styles.previewTitle}>In 7 days you could save</Text>
+          <Text style={styles.previewValue}>{preview7}</Text>
+          <Text style={styles.previewHint}>Just by staying smoke-free.</Text>
+        </View>
+
+        {showPicker && (
+          <View style={styles.pickerWrap}>
+            <DateTimePicker
+              value={date}
+              mode="date"
+              maximumDate={today}
+              display={Platform.OS === "ios" ? "inline" : "default"}
+              onChange={onChange}
+              themeVariant="dark"
+            />
+            {Platform.OS === "ios" && <View style={{ height: theme.spacing.sm }} />}
+            {Platform.OS === "ios" && <SecondaryButton title="Done" onPress={() => setShowPicker(false)} />}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Fixed bottom CTA */}
+      <View style={styles.ctaBar}>
+        <PrimaryButton title="Continue" onPress={saveAndContinue} />
+        <Text style={styles.footer}>No account. No judgment. Just progress.</Text>
       </View>
-
-      <View style={{ flex: 1 }} />
-
-      <SecondaryButton title={t("startToday")} onPress={() => setQuitDate(todayISO())} />
-      <View style={{ height: theme.spacing.sm }} />
-      <PrimaryButton title={t("continue")} onPress={saveAndNext} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { color: theme.colors.textPrimary, fontSize: theme.typography.h2.fontSize, fontWeight: "700" },
-  subtitle: { color: theme.colors.textSecondary, marginTop: 8 },
-  card: {
-    marginTop: theme.spacing.md,
+  title: { color: theme.colors.textPrimary, fontSize: 24, fontWeight: "900", marginTop: 10 },
+  subtitle: { color: theme.colors.textSecondary, marginTop: 10, marginBottom: 16, lineHeight: 18 },
+
+  quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 14 },
+  quickChip: {
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    backgroundColor: "transparent",
+  },
+  quickChipActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.surface },
+  quickText: { color: theme.colors.textPrimary, fontWeight: "800", fontSize: 13 },
+  quickTextActive: { color: theme.colors.primary },
+
+  dateCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
     padding: 16,
-  },
-  label: { color: theme.colors.textSecondary, marginBottom: 10 },
-  input: {
     borderWidth: 1,
-    borderColor: theme.colors.outline,
-    borderRadius: theme.radius.md,
-    padding: 14,
+    borderColor: theme.colors.divider,
+    marginBottom: 12,
   },
-  value: { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700" },
-  hint: { color: theme.colors.textTertiary, marginTop: 6, fontSize: 12 },
+  dateLabel: { color: theme.colors.textTertiary, marginBottom: 8, fontWeight: "700" },
+  dateBig: { color: theme.colors.textPrimary, fontSize: 20, fontWeight: "900" },
+  helper: { color: theme.colors.textTertiary, marginTop: 10, fontSize: 12 },
+
+  previewCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    marginBottom: 14,
+  },
+  previewTitle: { color: theme.colors.textSecondary, fontWeight: "800" },
+  previewValue: { color: theme.colors.primary, fontSize: 22, fontWeight: "900", marginTop: 8 },
+  previewHint: { color: theme.colors.textTertiary, marginTop: 6, fontSize: 12 },
+
+  pickerWrap: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+
+  ctaBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    backgroundColor: theme.colors.background,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.divider,
+  },
+  footer: { color: theme.colors.textTertiary, textAlign: "center", marginTop: 10, fontSize: 12 },
 });

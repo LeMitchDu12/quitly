@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useTranslation } from "react-i18next";
 import Screen from "../../components/Screen";
@@ -10,6 +10,7 @@ import { StorageKeys } from "../../storage/keys";
 import { getBool, setBool } from "../../storage/mmkv";
 import { setOnboardingComplete } from "../../storage/profile";
 import { requestNotifPermissions, scheduleDailyMotivation } from "../../notifications";
+import OnboardingHeader from "../../components/OnboardingHeader";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Paywall">;
 type Plan = "annual" | "monthly";
@@ -111,64 +112,81 @@ export default function PaywallScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t("paywallTitle")}</Text>
-        <Text style={styles.subtitle}>{t("paywallOnboardingSubtitle")}</Text>
-      </View>
+      {/* Scrollable content */}
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 190 }}
+      >
+        {/* ✅ Mets 5/5 si ton onboarding est en 5 étapes */}
+        <OnboardingHeader step={4} total={4} onBack={() => navigation.goBack()} />
 
-      <View style={styles.features}>
-        <Text style={styles.li}>- {t("featCharts")}</Text>
-        <Text style={styles.li}>- {t("featTimeline")}</Text>
-        <Text style={styles.li}>- {t("featUnlimited")}</Text>
-        <Text style={styles.li}>- {t("featUpdates")}</Text>
-      </View>
-
-      <View style={{ height: theme.spacing.md }} />
-
-      <PriceCard
-        title={t("paywallPlanAnnualTitle")}
-        subtitle={t("paywallPlanAnnualSubtitle")}
-        badge={t("paywallBestValue")}
-        selected={selectedPlan === "annual"}
-        onPress={() => setSelectedPlan("annual")}
-      />
-
-      <PriceCard
-        title={t("paywallPlanMonthlyTitle")}
-        subtitle={t("paywallPlanMonthlySubtitle")}
-        selected={selectedPlan === "monthly"}
-        onPress={() => setSelectedPlan("monthly")}
-      />
-
-      <View style={{ flex: 1 }} />
-
-      {busy ? (
-        <View style={styles.busy}>
-          <ActivityIndicator />
+        <View style={styles.header}>
+          <Text style={styles.title}>{t("paywallTitle")}</Text>
+          <Text style={styles.subtitle}>{t("paywallOnboardingSubtitle")}</Text>
         </View>
-      ) : (
-        <>
-          <PrimaryButton title={primaryCtaTitle} onPress={unlockPremiumMVP} disabled={localPremium} />
 
-          <View style={{ height: theme.spacing.sm }} />
+        <View style={styles.features}>
+          <Text style={styles.li}>- {t("featCharts")}</Text>
+          <Text style={styles.li}>- {t("featTimeline")}</Text>
+          <Text style={styles.li}>- {t("featUnlimited")}</Text>
+          <Text style={styles.li}>- {t("featUpdates")}</Text>
+        </View>
 
-          <Pressable onPress={continueFree} style={({ pressed }) => [styles.linkWrap, pressed && { opacity: 0.85 }]}>
-            <Text style={styles.link}>{t("paywallContinueFree")}</Text>
-          </Pressable>
+        <View style={{ height: theme.spacing.md }} />
 
-          <View style={{ height: theme.spacing.sm }} />
+        <PriceCard
+          title={t("paywallPlanAnnualTitle")}
+          subtitle={t("paywallPlanAnnualSubtitle")}
+          badge={t("paywallBestValue")}
+          selected={selectedPlan === "annual"}
+          onPress={() => setSelectedPlan("annual")}
+        />
 
-          <Pressable onPress={onRestore} style={({ pressed }) => [styles.restoreWrap, pressed && { opacity: 0.85 }]}>
-            <Text style={styles.restore}>{t("restore")}</Text>
-          </Pressable>
+        <PriceCard
+          title={t("paywallPlanMonthlyTitle")}
+          subtitle={t("paywallPlanMonthlySubtitle")}
+          selected={selectedPlan === "monthly"}
+          onPress={() => setSelectedPlan("monthly")}
+        />
 
-          <Text style={styles.legal}>
-            {t("paywallLegalLine1")}
-            {"\n"}
-            {t("paywallLegalLine2")}
-          </Text>
-        </>
-      )}
+        {/* Petit espace de respiration */}
+        <View style={{ height: theme.spacing.md }} />
+
+        {/* Optionnel : petite phrase premium sous les plans */}
+        <Text style={styles.note}>{t("paywallNote") ?? "Best value: Annual plan."}</Text>
+      </ScrollView>
+
+      {/* Fixed bottom CTA */}
+      <View style={styles.ctaBar}>
+        {busy ? (
+          <View style={styles.busyInline}>
+            <ActivityIndicator />
+          </View>
+        ) : (
+          <>
+            <PrimaryButton title={primaryCtaTitle} onPress={unlockPremiumMVP} disabled={localPremium} />
+
+            <View style={{ height: theme.spacing.sm }} />
+
+            <Pressable onPress={continueFree} style={({ pressed }) => [styles.linkWrap, pressed && { opacity: 0.85 }]}>
+              <Text style={styles.link}>{t("paywallContinueFree")}</Text>
+            </Pressable>
+
+            <View style={{ height: theme.spacing.sm }} />
+
+            <Pressable onPress={onRestore} style={({ pressed }) => [styles.restoreWrap, pressed && { opacity: 0.85 }]}>
+              <Text style={styles.restore}>{t("restore")}</Text>
+            </Pressable>
+
+            <Text style={styles.legal}>
+              {t("paywallLegalLine1")}
+              {"\n"}
+              {t("paywallLegalLine2")}
+            </Text>
+          </>
+        )}
+      </View>
     </Screen>
   );
 }
@@ -184,6 +202,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginTop: 10,
   },
+
   features: {
     marginTop: theme.spacing.md,
     backgroundColor: theme.colors.surface,
@@ -195,6 +214,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontSize: theme.typography.body.fontSize,
   },
+
   priceCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
@@ -204,23 +224,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  priceSelected: {
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-  },
-  priceUnselected: {
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-  },
-  priceTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  priceSub: {
-    color: theme.colors.textSecondary,
-    marginTop: 6,
-  },
+  priceSelected: { borderWidth: 1, borderColor: theme.colors.primary },
+  priceUnselected: { borderWidth: 1, borderColor: theme.colors.divider },
+
+  priceTitle: { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "900" },
+  priceSub: { color: theme.colors.textSecondary, marginTop: 6 },
+
   badge: {
     borderRadius: 999,
     paddingVertical: 6,
@@ -228,20 +237,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.primary,
   },
-  badgeText: {
-    color: theme.colors.primary,
-    fontWeight: "900",
+  badgeText: { color: theme.colors.primary, fontWeight: "900", fontSize: 12 },
+
+  note: {
+    color: theme.colors.textTertiary,
+    textAlign: "center",
     fontSize: 12,
+    marginTop: 6,
   },
-  busy: {
+
+  // CTA bar fixed
+  ctaBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    backgroundColor: theme.colors.background,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.divider,
+  },
+
+  busyInline: {
     height: 120,
     justifyContent: "center",
     alignItems: "center",
   },
+
   linkWrap: { alignItems: "center" },
   link: { color: theme.colors.textSecondary, textDecorationLine: "underline", fontWeight: "700" },
+
   restoreWrap: { alignItems: "center" },
   restore: { color: theme.colors.textTertiary, textDecorationLine: "underline" },
+
   legal: {
     color: theme.colors.textTertiary,
     fontSize: 12,

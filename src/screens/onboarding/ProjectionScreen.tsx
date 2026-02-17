@@ -10,6 +10,7 @@ import { StorageKeys } from "../../storage/keys";
 import { getNumber, getString } from "../../storage/mmkv";
 import { moneySaved } from "../../utils/calculations";
 import { formatCurrencyEUR } from "../../utils/format";
+import OnboardingHeader from "../../components/OnboardingHeader";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Projection">;
 
@@ -27,6 +28,7 @@ export default function ProjectionScreen({ navigation }: Props) {
 
   return (
     <Screen>
+      <OnboardingHeader step={3} total={4} onBack={() => navigation.goBack()} />
       <Text style={styles.title}>{t("projectionTitle")}</Text>
       <Text style={styles.subtitle}>{t("projectionSubtitle")}</Text>
 

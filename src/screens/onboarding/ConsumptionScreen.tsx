@@ -8,6 +8,7 @@ import { theme } from "../../theme";
 import { RootStackParamList } from "../../navigation/Root";
 import { StorageKeys } from "../../storage/keys";
 import { getNumber, setNumber } from "../../storage/mmkv";
+import OnboardingHeader from "../../components/OnboardingHeader";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Consumption">;
 
@@ -67,6 +68,7 @@ export default function ConsumptionScreen({ navigation }: Props) {
 
   return (
     <Screen>
+      <OnboardingHeader step={2} total={4} onBack={() => navigation.goBack()} />
       <Text style={styles.title}>{t("consumptionTitle")}</Text>
       <Text style={styles.subtitle}>{t("consumptionSubtitle")}</Text>
       <View style={{ height: theme.spacing.md }} />
