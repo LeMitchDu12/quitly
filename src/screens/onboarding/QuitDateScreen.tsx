@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, ScrollView } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useTranslation } from "react-i18next";
 import { RootStackParamList } from "../../navigation/Root";
 import Screen from "../../components/Screen";
 import PrimaryButton from "../../components/PrimaryButton";
@@ -19,12 +20,14 @@ type Props = NativeStackScreenProps<RootStackParamList, "QuitDate">;
 function toISODate(d: Date) {
   return toLocalISODate(d);
 }
+
 function clampToToday(d: Date) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   return x > today ? today : x;
 }
+
 function addDays(base: Date, delta: number) {
   const d = new Date(base);
   d.setDate(d.getDate() + delta);
@@ -32,6 +35,8 @@ function addDays(base: Date, delta: number) {
 }
 
 export default function QuitDateScreen({ navigation }: Props) {
+  const { t } = useTranslation();
+
   const today = useMemo(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -61,7 +66,7 @@ export default function QuitDateScreen({ navigation }: Props) {
     return formatCurrencyEUR(saved);
   }, [cigsPerDay, cigsPerPack, pricePerPack]);
 
-  const onChange = (_: any, selected?: Date) => {
+  const onChange = (_: unknown, selected?: Date) => {
     if (Platform.OS === "android") setShowPicker(false);
     if (!selected) return;
     setDate(clampToToday(selected));
@@ -74,17 +79,16 @@ export default function QuitDateScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      {/* Scrollable content */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 120 }} // espace pour le CTA fixe
+        contentContainerStyle={{ paddingBottom: 120 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <OnboardingHeader step={1} total={4} hideBack />
 
-        <Text style={styles.title}>When did you stop smoking?</Text>
-        <Text style={styles.subtitle}>Pick your quit date. You can change it later.</Text>
+        <Text style={styles.title}>{t("onboardingQuitDateTitle")}</Text>
+        <Text style={styles.subtitle}>{t("onboardingQuitDateSubtitle")}</Text>
 
         <View style={styles.quickRow}>
           <Pressable
@@ -95,7 +99,7 @@ export default function QuitDateScreen({ navigation }: Props) {
               pressed && { opacity: 0.9 },
             ]}
           >
-            <Text style={[styles.quickText, isToday && styles.quickTextActive]}>Today</Text>
+            <Text style={[styles.quickText, isToday && styles.quickTextActive]}>{t("onboardingToday")}</Text>
           </Pressable>
 
           <Pressable
@@ -106,7 +110,7 @@ export default function QuitDateScreen({ navigation }: Props) {
               pressed && { opacity: 0.9 },
             ]}
           >
-            <Text style={[styles.quickText, isYesterday && styles.quickTextActive]}>Yesterday</Text>
+            <Text style={[styles.quickText, isYesterday && styles.quickTextActive]}>{t("onboardingYesterday")}</Text>
           </Pressable>
 
           {Platform.OS === "android" && (
@@ -114,23 +118,23 @@ export default function QuitDateScreen({ navigation }: Props) {
               onPress={() => setShowPicker(true)}
               style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.9 }]}
             >
-              <Text style={styles.quickText}>Pick a date</Text>
+              <Text style={styles.quickText}>{t("onboardingPickDate")}</Text>
             </Pressable>
           )}
         </View>
 
         <View style={styles.dateCard}>
-          <Text style={styles.dateLabel}>Selected date</Text>
+          <Text style={styles.dateLabel}>{t("settingsSelectedDate")}</Text>
           <Text style={styles.dateBig}>{pretty}</Text>
           <Text style={styles.helper}>
-            {Platform.OS === "ios" ? "Scroll to adjust." : "Tap “Pick a date” to open the calendar."}
+            {Platform.OS === "ios" ? t("settingsDateHelperIOS") : t("settingsDateHelperAndroid")}
           </Text>
         </View>
 
         <View style={styles.previewCard}>
-          <Text style={styles.previewTitle}>In 7 days you could save</Text>
+          <Text style={styles.previewTitle}>{t("onboardingPreviewTitle")}</Text>
           <Text style={styles.previewValue}>{preview7}</Text>
-          <Text style={styles.previewHint}>Just by staying smoke-free.</Text>
+          <Text style={styles.previewHint}>{t("onboardingPreviewHint")}</Text>
         </View>
 
         {showPicker && (
@@ -144,15 +148,14 @@ export default function QuitDateScreen({ navigation }: Props) {
               themeVariant="dark"
             />
             {Platform.OS === "ios" && <View style={{ height: theme.spacing.sm }} />}
-            {Platform.OS === "ios" && <SecondaryButton title="Done" onPress={() => setShowPicker(false)} />}
+            {Platform.OS === "ios" && <SecondaryButton title={t("settingsDone")} onPress={() => setShowPicker(false)} />}
           </View>
         )}
       </ScrollView>
 
-      {/* Fixed bottom CTA */}
       <View style={styles.ctaBar}>
-        <PrimaryButton title="Continue" onPress={saveAndContinue} />
-        <Text style={styles.footer}>No account. No judgment. Just progress.</Text>
+        <PrimaryButton title={t("continue")} onPress={saveAndContinue} />
+        <Text style={styles.footer}>{t("onboardingFooter")}</Text>
       </View>
     </Screen>
   );
