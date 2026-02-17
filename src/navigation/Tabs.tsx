@@ -1,5 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import HomeScreen from "../screens/HomeScreen";
 import ProgressScreen from "../screens/ProgressScreen";
 import SettingsScreen from "../screens/SettingsScreen";
@@ -19,7 +20,7 @@ export default function Tabs() {
 
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
           backgroundColor: theme.colors.background,
@@ -27,7 +28,20 @@ export default function Tabs() {
         },
         tabBarActiveTintColor: theme.colors.textPrimary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
-      }}
+        tabBarIcon: ({ color, size, focused }) => {
+          let iconName: keyof typeof Ionicons.glyphMap = "ellipse";
+
+          if (route.name === "Home") {
+            iconName = focused ? "home" : "home-outline";
+          } else if (route.name === "Progress") {
+            iconName = focused ? "stats-chart" : "stats-chart-outline";
+          } else if (route.name === "Settings") {
+            iconName = focused ? "settings" : "settings-outline";
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: t("home") }} />
       <Tab.Screen name="Progress" component={ProgressScreen} options={{ title: t("progress") }} />
