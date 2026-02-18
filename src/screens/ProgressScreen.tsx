@@ -102,19 +102,11 @@ export default function ProgressScreen() {
   const maxSaved = Math.max(...savedSeries);
   const maxCigarettes = Math.max(...cigarettesSeries);
   const quitDateLabel = formatDateForLocale(quitDate, i18n.language || "fr-FR");
+
   const projections = [
-    {
-      daysAhead: 30,
-      value: moneySaved(days + 30, cigsPerDay, cigsPerPack, pricePerPack),
-    },
-    {
-      daysAhead: 90,
-      value: moneySaved(days + 90, cigsPerDay, cigsPerPack, pricePerPack),
-    },
-    {
-      daysAhead: 365,
-      value: moneySaved(days + 365, cigsPerDay, cigsPerPack, pricePerPack),
-    },
+    { daysAhead: 30, value: moneySaved(days + 30, cigsPerDay, cigsPerPack, pricePerPack) },
+    { daysAhead: 90, value: moneySaved(days + 90, cigsPerDay, cigsPerPack, pricePerPack) },
+    { daysAhead: 365, value: moneySaved(days + 365, cigsPerDay, cigsPerPack, pricePerPack) },
   ];
   const maxProjection = Math.max(...projections.map((p) => p.value), 1);
   const savedLabel = formatCurrencyEUR(totalSaved);
@@ -123,6 +115,25 @@ export default function ProgressScreen() {
   const streakAnchor = relapseDate ?? quitDate;
   const streakDays = daysSince(streakAnchor);
   const badgeMilestones = [3, 7, 14, 30, 90];
+
+  const todayISO = todayLocalISODate();
+  const weekStartISO = addDaysISO(todayISO, -6);
+  const monthStartISO = addDaysISO(todayISO, -29);
+  const weekRelapseEntries = checkins.filter((entry) => entry.date >= weekStartISO && entry.date <= todayISO && entry.smoked > 0);
+  const monthRelapseEntries = checkins.filter((entry) => entry.date >= monthStartISO && entry.date <= todayISO && entry.smoked > 0);
+  const weekRelapseCigs = weekRelapseEntries.reduce((sum, entry) => sum + entry.smoked, 0);
+  const monthRelapseCigs = monthRelapseEntries.reduce((sum, entry) => sum + entry.smoked, 0);
+
+  const weekHistory = useMemo(() => {
+    const segments = [3, 2, 1, 0].map((offset) => {
+      const start = addDaysISO(todayISO, -(offset * 7 + 6));
+      const end = addDaysISO(todayISO, -(offset * 7));
+      const smoked = smokedSinceUntil(checkins, start, end);
+      return { key: `${start}-${end}`, label: t("relapseHistoryWeekShort", { index: 4 - offset }), smoked };
+    });
+    const max = Math.max(...segments.map((segment) => segment.smoked), 1);
+    return { segments, max };
+  }, [checkins, todayISO, t]);
 
   const unlockPremium = () => {
     setBool(StorageKeys.isPremium, true);
@@ -149,13 +160,7 @@ export default function ProgressScreen() {
             <Text style={styles.chartTitle}>{t("chartTitleSavings")}</Text>
             <Text style={styles.chartValue}>{formatCurrencyEUR(totalSaved)}</Text>
           </View>
-
-          {isPremium ? (
-            <LineChart width={320} height={180} data={savedSeries} />
-          ) : (
-            <Text style={styles.locked}>{t("chartsPremium")}</Text>
-          )}
-
+          {isPremium ? <LineChart width={320} height={180} data={savedSeries} /> : <Text style={styles.locked}>{t("chartsPremium")}</Text>}
           {isPremium ? (
             <View style={styles.legendWrap}>
               <View style={styles.legendRow}>
@@ -177,13 +182,7 @@ export default function ProgressScreen() {
             <Text style={styles.chartTitle}>{t("chartTitleCigarettes")}</Text>
             <Text style={styles.chartValue}>{totalAvoided.toLocaleString(i18n.language || "fr-FR")}</Text>
           </View>
-
-          {isPremium ? (
-            <LineChart width={320} height={180} data={cigarettesSeries} />
-          ) : (
-            <Text style={styles.locked}>{t("chartsPremium")}</Text>
-          )}
-
+          {isPremium ? <LineChart width={320} height={180} data={cigarettesSeries} /> : <Text style={styles.locked}>{t("chartsPremium")}</Text>}
           {isPremium ? (
             <View style={styles.legendWrap}>
               <View style={styles.legendRow}>
@@ -193,9 +192,7 @@ export default function ProgressScreen() {
                 </View>
               </View>
               <View style={styles.legendRow}>
-                <Text style={styles.legendSubText}>
-                  {t("chartLegendMaxCigarettes", { value: maxCigarettes.toLocaleString(i18n.language || "fr-FR") })}
-                </Text>
+                <Text style={styles.legendSubText}>{t("chartLegendMaxCigarettes", { value: maxCigarettes.toLocaleString(i18n.language || "fr-FR") })}</Text>
               </View>
             </View>
           ) : null}
@@ -206,7 +203,6 @@ export default function ProgressScreen() {
             <Text style={styles.chartTitle}>{t("projectionSavingsTitle")}</Text>
             <Text style={styles.chartValue}>{t("projectionSavingsSubtitle")}</Text>
           </View>
-
           {isPremium ? (
             <View>
               {projections.map((projection) => {
@@ -230,17 +226,14 @@ export default function ProgressScreen() {
         <View style={styles.chartBox}>
           <Text style={styles.chartTitle}>{t("relapseBadgesTitle")}</Text>
           <Text style={styles.legendSubText}>{t("relapseBadgesSubtitle", { days: streakDays })}</Text>
-          <Text style={styles.legendSubText}>
-            {t("relapseBadgesAnchorDate", { date: formatDateForLocale(streakAnchor, i18n.language || "fr-FR") })}
-          </Text>
-
+          <Text style={styles.legendSubText}>{t("relapseBadgesAnchorDate", { date: formatDateForLocale(streakAnchor, i18n.language || "fr-FR") })}</Text>
           {isPremium ? (
             <View style={styles.badgesWrap}>
               {badgeMilestones.map((milestone) => {
                 const unlocked = streakDays >= milestone;
                 return (
                   <View key={milestone} style={[styles.badge, unlocked ? styles.badgeOn : styles.badgeOff]}>
-                    <Text style={styles.badgeIcon}>{unlocked ? "🏆" : "🔒"}</Text>
+                    <Text style={styles.badgeIcon}>{unlocked ? "OK" : "LOCK"}</Text>
                     <Text style={styles.badgeText}>{t("relapseBadgeDays", { days: milestone })}</Text>
                   </View>
                 );
@@ -251,20 +244,45 @@ export default function ProgressScreen() {
           )}
         </View>
 
+        <View style={styles.chartBox}>
+          <Text style={styles.chartTitle}>{t("relapseHistoryTitle")}</Text>
+          {isPremium ? (
+            <View style={styles.historyWrap}>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyLabel}>{t("relapseHistoryThisWeek")}</Text>
+                <Text style={styles.historyValue}>{t("relapseHistoryCigsAndDays", { cigs: weekRelapseCigs, days: weekRelapseEntries.length })}</Text>
+              </View>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyLabel}>{t("relapseHistoryLast30Days")}</Text>
+                <Text style={styles.historyValue}>{t("relapseHistoryCigsAndDays", { cigs: monthRelapseCigs, days: monthRelapseEntries.length })}</Text>
+              </View>
+              <View style={{ marginTop: 10 }}>
+                {weekHistory.segments.map((segment) => {
+                  const pct = Math.max(8, Math.round((segment.smoked / weekHistory.max) * 100));
+                  return (
+                    <View key={segment.key} style={styles.projectionRow}>
+                      <Text style={styles.projectionLabel}>{segment.label}</Text>
+                      <Text style={styles.projectionValue}>{t("relapseHistorySmokedValue", { value: segment.smoked })}</Text>
+                      <View style={styles.projectionTrack}>
+                        <View style={[styles.historyFill, { width: `${pct}%` }]} />
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.locked}>{t("premiumRelapseInsightsTeaser")}</Text>
+          )}
+        </View>
+
         <View style={styles.timeline}>
           <Text style={styles.item}>{t("timeline24h")}</Text>
           <Text style={styles.item}>{t("timeline1week")}</Text>
-          <Text style={[styles.item, !isPremium && styles.lockedText]}>
-            {isPremium ? t("timeline1month") : t("timeline1monthPremium")}
-          </Text>
+          <Text style={[styles.item, !isPremium && styles.lockedText]}>{isPremium ? t("timeline1month") : t("timeline1monthPremium")}</Text>
         </View>
       </ScrollView>
-      <PaywallModal
-        visible={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-        onUnlock={unlockPremium}
-        savedAmountLabel={savedLabel}
-      />
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} onUnlock={unlockPremium} savedAmountLabel={savedLabel} />
     </Screen>
   );
 }
@@ -349,8 +367,17 @@ const styles = StyleSheet.create({
   },
   badgeOn: { backgroundColor: theme.colors.primary },
   badgeOff: { backgroundColor: theme.colors.divider },
-  badgeIcon: { fontSize: 14 },
+  badgeIcon: { fontSize: 12, fontWeight: "800", color: theme.colors.textPrimary },
   badgeText: { color: theme.colors.textPrimary, fontWeight: "700", fontSize: 12 },
+  historyWrap: { marginTop: 10 },
+  historyRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8, gap: 8 },
+  historyLabel: { color: theme.colors.textSecondary },
+  historyValue: { color: theme.colors.textPrimary, fontWeight: "700" },
+  historyFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#f59e0b",
+  },
   timeline: { marginTop: theme.spacing.md },
   item: { color: theme.colors.textPrimary, marginBottom: 12 },
   lockedText: { color: theme.colors.textTertiary },

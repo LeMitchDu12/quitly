@@ -28,6 +28,7 @@
   "daysSmokeFree": "jours sans cigarette",
   "homeDayZero": "Aujourd'hui, c'est le jour zero.",
   "homeKeepGoing": "Continue. Un jour a la fois.",
+  "homeRelapseSubtitle": "Dernière rechute le {{date}}.",
   "saved": "Economises",
   "moneySaved": "Argent economise",
   "chartTitleSinceQuit": "Votre economie depuis le {{date}}",
@@ -122,15 +123,22 @@
   "dailyCheckinHowMany": "Combien de cigarettes ?",
   "dailyCheckinLoggedNoRelapse": "Bilan du jour enregistre: aucune rechute.",
   "dailyCheckinLoggedWithCount": "Bilan du jour enregistre: {{count}} cigarette(s).",
+  "dailyCheckinEdit": "Modifier le bilan",
   "relapseBadgesTitle": "Badges rechute",
   "relapseBadgesSubtitle": "{{days}} jour(s) depuis la derniere rechute",
   "relapseBadgesAnchorDate": "Depuis le {{date}}",
   "relapseBadgeDays": "{{days}} jours",
   "premiumRelapseInsightsTeaser": "Premium: badges de serie et suivi rechute detaille",
+  "relapseHistoryTitle": "Historique rechutes",
+  "relapseHistoryThisWeek": "Cette semaine",
+  "relapseHistoryLast30Days": "30 derniers jours",
+  "relapseHistoryCigsAndDays": "{{cigs}} cigarettes sur {{days}} jour(s)",
+  "relapseHistorySmokedValue": "{{value}} fumee(s)",
+  "relapseHistoryWeekShort": "Semaine {{index}}",
   "notif": {
     "daily": {
-      "title": "Continue",
-      "body": "Chaque journee sans cigarette est une victoire."
+      "title": "Bilan quotidien",
+      "body": "As-tu rechute aujourd'hui ? Touche pour repondre."
     },
     "milestone": {
       "24h": {

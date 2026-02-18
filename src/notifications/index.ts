@@ -5,6 +5,8 @@ import i18n from "../i18n";
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
   }),
@@ -41,8 +43,10 @@ export async function scheduleDailyMotivation(hour = 9, minute = 0): Promise<voi
     content: {
       title: i18n.t("notif.daily.title"),
       body: i18n.t("notif.daily.body"),
+      data: { target: "dailyCheckin" },
     },
     trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
       hour,
       minute,
       repeats: true,
@@ -60,7 +64,7 @@ export async function scheduleDefaultMilestones(): Promise<void> {
       title: i18n.t("notif.milestone.24h.title"),
       body: i18n.t("notif.milestone.24h.body"),
     },
-    trigger: { seconds: 24 * 60 * 60 },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 24 * 60 * 60 },
   });
 
   // 7 jours
@@ -69,7 +73,7 @@ export async function scheduleDefaultMilestones(): Promise<void> {
       title: i18n.t("notif.milestone.7d.title"),
       body: i18n.t("notif.milestone.7d.body"),
     },
-    trigger: { seconds: 7 * 24 * 60 * 60 },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 7 * 24 * 60 * 60 },
   });
 
   // 30 jours
@@ -78,7 +82,7 @@ export async function scheduleDefaultMilestones(): Promise<void> {
       title: i18n.t("notif.milestone.30d.title"),
       body: i18n.t("notif.milestone.30d.body"),
     },
-    trigger: { seconds: 30 * 24 * 60 * 60 },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 30 * 24 * 60 * 60 },
   });
 }
 

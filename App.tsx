@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import * as Notifications from "expo-notifications";
 import "./src/i18n"; // init i18n
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import RootNavigator from "./src/navigation/Root"; 
 import { theme } from "./src/theme";
-import { hydrateStorage } from "./src/storage/mmkv";
+import { hydrateStorage, setString } from "./src/storage/mmkv";
+import { StorageKeys } from "./src/storage/keys";
+import { goToHomeTab, navigationRef } from "./src/navigation";
 
 const navTheme = {
   ...DefaultTheme,
@@ -30,6 +33,33 @@ export default function App() {
       .finally(() => setIsReady(true));
   }, []);
 
+  useEffect(() => {
+    if (!isReady) return;
+
+    const applyNotificationTarget = (target?: unknown) => {
+      if (target === "dailyCheckin") {
+        setString(StorageKeys.pendingAction, "dailyCheckin");
+        goToHomeTab();
+      }
+    };
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        const target = response?.notification.request.content.data?.target;
+        applyNotificationTarget(target);
+      })
+      .catch(() => {
+        // ignore
+      });
+
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const target = response.notification.request.content.data?.target;
+      applyNotificationTarget(target);
+    });
+
+    return () => sub.remove();
+  }, [isReady]);
+
   if (!isReady) {
     return (
       <View
@@ -47,7 +77,7 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} ref={navigationRef}>
       <StatusBar style="light" />
       <RootNavigator />
     </NavigationContainer>

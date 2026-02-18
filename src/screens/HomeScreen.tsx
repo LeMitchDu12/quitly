@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Pressable } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import Screen from "../components/Screen";
 import StatCard from "../components/StatCard";
@@ -12,7 +12,17 @@ import { getBool, getNumber, getString, setBool, setString } from "../storage/mm
 import { daysSince, cigarettesAvoided, moneySavedFromCigarettes, timeGainedHours } from "../utils/calculations";
 import { formatCurrencyEUR } from "../utils/format";
 import { todayLocalISODate } from "../utils/date";
-import { DailyCheckin, readDailyCheckins, totalSmokedSince, upsertDailyCheckin } from "../storage/checkins";
+import { DailyCheckin, lastRelapseDate, readDailyCheckins, totalSmokedSince, upsertDailyCheckin } from "../storage/checkins";
+
+function formatDate(dateISO: string, locale: string) {
+  const d = new Date(`${dateISO}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateISO;
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(d);
+}
 
 type Profile = {
   quitDate: string;
@@ -23,7 +33,7 @@ type Profile = {
 };
 
 export default function HomeScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [checkins, setCheckins] = useState<DailyCheckin[]>([]);
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -37,7 +47,17 @@ export default function HomeScreen() {
     const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;
     const isPremium = getBool(StorageKeys.isPremium) ?? false;
     setProfile({ quitDate, cigsPerDay, pricePerPack, cigsPerPack, isPremium });
-    setCheckins(readDailyCheckins());
+    const freshCheckins = readDailyCheckins();
+    setCheckins(freshCheckins);
+
+    const pendingAction = getString(StorageKeys.pendingAction);
+    if (pendingAction === "dailyCheckin") {
+      const hasToday = freshCheckins.some((entry) => entry.date === todayLocalISODate());
+      if (!hasToday) {
+        setDailyRelapseMode(false);
+      }
+      setString(StorageKeys.pendingAction, "");
+    }
   };
 
   useEffect(() => {
@@ -49,6 +69,10 @@ export default function HomeScreen() {
       loadData();
     }, [])
   );
+
+  const hasRelapses = useMemo(() => checkins.some((entry) => entry.smoked > 0), [checkins]);
+
+  const lastRelapse = useMemo(() => lastRelapseDate(checkins, profile?.quitDate ?? todayLocalISODate()), [checkins, profile]);
 
   const stats = useMemo(() => {
     if (!profile) return null;
@@ -71,6 +95,12 @@ export default function HomeScreen() {
     setDailyCigs(1);
   };
 
+  const editTodayCheckin = () => {
+    const initial = todayCheckin?.smoked ?? 0;
+    setDailyCigs(initial);
+    setDailyRelapseMode(true);
+  };
+
   if (!profile || !stats) {
     return (
       <Screen>
@@ -89,91 +119,109 @@ export default function HomeScreen() {
     setPaywallOpen(false);
   };
 
-  const resetToToday = () => {
-    const date = todayLocalISODate();
-    setString(StorageKeys.quitDate, date);
-    setProfile((p) => (p ? { ...p, quitDate: date } : p));
-  };
-
-  return (
-    <Screen>
-      <View style={styles.headerRow}>
-        <Text style={styles.brand}>{t("appName")}</Text>
-
-        <Pressable style={styles.pill} onPress={() => setPaywallOpen(true)}>
-          <Text style={[styles.pillText, profile.isPremium && { color: theme.colors.primary }]}>
-            {profile.isPremium ? `${t("premium")} ✓` : t("premium")}
-          </Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.hero}>
-        <Text style={styles.heroNumber}>{stats.days}</Text>
-        <Text style={styles.heroLabel}>{t("daysSmokeFree")}</Text>
-        <View style={styles.heroDivider} />
-        <Text style={styles.heroSub}>{stats.days === 0 ? t("homeDayZero") : t("homeKeepGoing")}</Text>
-      </View>
-
-      <StatCard icon="💸" value={savedLabel} label={t("saved")} />
-      <StatCard icon="🚭" value={`${stats.avoided}`} label={t("cigarettesAvoided")} />
-      <StatCard icon="⏳" value={`${stats.gainedHours}h`} label={t("timeGained")} />
-
-      <View style={{ height: theme.spacing.sm }} />
-
-      {!todayCheckin ? (
+  const renderCheckinCard = () => {
+    if (dailyRelapseMode) {
+      return (
         <View style={styles.checkinCard}>
           <Text style={styles.checkinTitle}>{t("dailyCheckinTitle")}</Text>
           <Text style={styles.checkinSubtitle}>{t("dailyCheckinSubtitle")}</Text>
-
-          {!dailyRelapseMode ? (
-            <View style={styles.checkinActions}>
-              <Pressable style={[styles.checkinButton, styles.successButton]} onPress={() => saveTodayCheckin(0)}>
-                <Text style={styles.checkinButtonText}>{t("dailyCheckinNoRelapse")}</Text>
-              </Pressable>
-              <Pressable style={[styles.checkinButton, styles.relapseButton]} onPress={() => setDailyRelapseMode(true)}>
-                <Text style={styles.checkinButtonText}>{t("dailyCheckinYesRelapse")}</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View>
-              <Text style={styles.counterLabel}>{t("dailyCheckinHowMany")}</Text>
-              <View style={styles.counterRow}>
-                <Pressable style={styles.counterButton} onPress={() => setDailyCigs((v) => Math.max(1, v - 1))}>
-                  <Text style={styles.counterButtonText}>-</Text>
-                </Pressable>
-                <Text style={styles.counterValue}>{dailyCigs}</Text>
-                <Pressable style={styles.counterButton} onPress={() => setDailyCigs((v) => v + 1)}>
-                  <Text style={styles.counterButtonText}>+</Text>
-                </Pressable>
-              </View>
-              <View style={styles.checkinActions}>
-                <Pressable style={[styles.checkinButton, styles.successButton]} onPress={() => saveTodayCheckin(dailyCigs)}>
-                  <Text style={styles.checkinButtonText}>{t("settingsSave")}</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.checkinButton, styles.cancelButton]}
-                  onPress={() => {
-                    setDailyRelapseMode(false);
-                    setDailyCigs(1);
-                  }}
-                >
-                  <Text style={styles.checkinButtonText}>{t("settingsCancel")}</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
+          <Text style={styles.counterLabel}>{t("dailyCheckinHowMany")}</Text>
+          <View style={styles.counterRow}>
+            <Pressable style={styles.counterButton} onPress={() => setDailyCigs((v) => Math.max(0, v - 1))}>
+              <Text style={styles.counterButtonText}>-</Text>
+            </Pressable>
+            <Text style={styles.counterValue}>{dailyCigs}</Text>
+            <Pressable style={styles.counterButton} onPress={() => setDailyCigs((v) => v + 1)}>
+              <Text style={styles.counterButtonText}>+</Text>
+            </Pressable>
+          </View>
+          <View style={styles.checkinActions}>
+            <Pressable style={[styles.checkinButton, styles.successButton]} onPress={() => saveTodayCheckin(dailyCigs)}>
+              <Text style={styles.checkinButtonText}>{t("settingsSave")}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.checkinButton, styles.cancelButton]}
+              onPress={() => {
+                setDailyRelapseMode(false);
+                setDailyCigs(1);
+              }}
+            >
+              <Text style={styles.checkinButtonText}>{t("settingsCancel")}</Text>
+            </Pressable>
+          </View>
         </View>
-      ) : (
+      );
+    }
+
+    if (todayCheckin) {
+      return (
         <View style={styles.checkinDone}>
           <Text style={styles.checkinDoneText}>
             {todayCheckin.smoked > 0
               ? t("dailyCheckinLoggedWithCount", { count: todayCheckin.smoked })
               : t("dailyCheckinLoggedNoRelapse")}
           </Text>
+          <View style={{ marginTop: theme.spacing.sm }}>
+            <SecondaryButton title={t("dailyCheckinEdit")} onPress={editTodayCheckin} />
+          </View>
         </View>
-      )}
+      );
+    }
 
-      <SecondaryButton title={t("iSlipped")} onPress={resetToToday} />
+    return (
+      <View style={styles.checkinCard}>
+        <Text style={styles.checkinTitle}>{t("dailyCheckinTitle")}</Text>
+        <Text style={styles.checkinSubtitle}>{t("dailyCheckinSubtitle")}</Text>
+        <View style={styles.checkinActions}>
+          <Pressable style={[styles.checkinButton, styles.successButton]} onPress={() => saveTodayCheckin(0)}>
+            <Text style={styles.checkinButtonText}>{t("dailyCheckinNoRelapse")}</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.checkinButton, styles.relapseButton]}
+            onPress={() => {
+              setDailyRelapseMode(true);
+              setDailyCigs(1);
+            }}
+          >
+            <Text style={styles.checkinButtonText}>{t("dailyCheckinYesRelapse")}</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <Screen>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.headerRow}>
+          <Text style={styles.brand}>{t("appName")}</Text>
+
+          <Pressable style={styles.pill} onPress={() => setPaywallOpen(true)}>
+            <Text style={[styles.pillText, profile.isPremium && { color: theme.colors.primary }]}>
+              {profile.isPremium ? `${t("premium")} ✓` : t("premium")}
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.hero}>
+          <Text style={styles.heroNumber}>{stats.days}</Text>
+          <Text style={styles.heroLabel}>{t("daysSmokeFree")}</Text>
+          <View style={styles.heroDivider} />
+        <Text style={styles.heroSub}>
+          {stats.days === 0
+            ? t("homeDayZero")
+            : lastRelapse
+            ? t("homeRelapseSubtitle", { date: formatDate(lastRelapse, i18n.language || "fr-FR") })
+            : t("homeKeepGoing")}
+        </Text>
+        </View>
+
+        {renderCheckinCard()}
+        <View style={{ height: theme.spacing.sm }} />
+        <StatCard icon="💸" value={savedLabel} label={t("saved")} />
+        <StatCard icon="🚭" value={`${stats.avoided}`} label={t("cigarettesAvoided")} />
+        <StatCard icon="⏳" value={`${stats.gainedHours}h`} label={t("timeGained")} />
+      </ScrollView>
 
       <PaywallModal
         visible={paywallOpen}
@@ -268,4 +316,5 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   checkinDoneText: { color: theme.colors.textSecondary, fontWeight: "600" },
+  content: { paddingBottom: theme.spacing.xl },
 });
