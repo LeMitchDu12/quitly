@@ -9,6 +9,7 @@ export const StorageKeys = {
   notificationsEnabled: "notificationsEnabled",
   dailyCheckins: "dailyCheckins",
   pendingAction: "pendingAction",
+  notificationTimes: "notificationTimes",
 } as const;
 
 export type StorageKey = typeof StorageKeys[keyof typeof StorageKeys];

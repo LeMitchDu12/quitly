@@ -217,8 +217,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
     overflow: "hidden",
+    alignItems: "stretch",
   },
-  datePicker: { width: "100%" },
+  datePicker: { width: "100%", maxWidth: "100%" },
   stepper: {
     backgroundColor: theme.colors.elevated,
     borderRadius: theme.radius.lg,

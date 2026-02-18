@@ -50,6 +50,12 @@ function addDaysISO(dateISO: string, days: number) {
   return `${y}-${m}-${day}`;
 }
 
+function formatMonthLabel(dateISO: string, locale: string) {
+  const d = new Date(`${dateISO}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateISO;
+  return new Intl.DateTimeFormat(locale, { month: "short", year: "numeric" }).format(d);
+}
+
 export default function ProgressScreen() {
   const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<ProgressProfile>(() => readProfile());
@@ -111,6 +117,41 @@ export default function ProgressScreen() {
   const maxProjection = Math.max(...projections.map((p) => p.value), 1);
   const savedLabel = formatCurrencyEUR(totalSaved);
 
+  const renderChartWithAxis = ({
+    data,
+    minValue,
+    maxValue,
+    unit,
+    startLabel,
+    endLabel,
+  }: {
+    data: number[];
+    minValue: number;
+    maxValue: number;
+    unit: "currency" | "cigarettes";
+    startLabel: string;
+    endLabel: string;
+  }) => {
+    const formatValue =
+      unit === "currency"
+        ? (value: number) => formatCurrencyEUR(value)
+        : (value: number) => value.toLocaleString(i18n.language || "fr-FR");
+
+    return (
+      <>
+        <View style={styles.chartAxisRow}>
+          <View style={{ flex: 1 }}>
+            <LineChart width={320} height={180} data={data} />
+          </View>
+        </View>
+        <View style={styles.xAxisRow}>
+          <Text style={styles.axisLabel}>{startLabel}</Text>
+          <Text style={styles.axisLabel}>{endLabel}</Text>
+        </View>
+      </>
+    );
+  };
+
   const relapseDate = lastRelapseDate(checkins, quitDate);
   const streakAnchor = relapseDate ?? quitDate;
   const streakDays = daysSince(streakAnchor);
@@ -160,21 +201,28 @@ export default function ProgressScreen() {
             <Text style={styles.chartTitle}>{t("chartTitleSavings")}</Text>
             <Text style={styles.chartValue}>{formatCurrencyEUR(totalSaved)}</Text>
           </View>
-          {isPremium ? <LineChart width={320} height={180} data={savedSeries} /> : <Text style={styles.locked}>{t("chartsPremium")}</Text>}
           {isPremium ? (
-            <View style={styles.legendWrap}>
-              <View style={styles.legendRow}>
-                <View style={styles.legendLeft}>
-                  <View style={styles.legendDot} />
-                  <Text style={styles.legendText}>{t("chartLegendSinceDate", { date: quitDateLabel })}</Text>
+            <>
+              {renderChartWithAxis({
+                data: savedSeries,
+                minValue: minSaved,
+                maxValue: maxSaved,
+                unit: "currency",
+                startLabel: formatMonthLabel(quitDate, i18n.language || "fr-FR"),
+                endLabel: formatMonthLabel(addDaysISO(quitDate, days), i18n.language || "fr-FR"),
+              })}
+              <View style={styles.legendWrap}>
+                <View style={styles.legendRow}>
+                  <View style={styles.legendLeft}>
+                    <View style={styles.legendDot} />
+                    <Text style={styles.legendText}>{t("chartLegendSinceDate", { date: quitDateLabel })}</Text>
+                  </View>
                 </View>
               </View>
-              <View style={styles.legendRow}>
-                <Text style={styles.legendSubText}>{t("chartLegendMin", { value: formatCurrencyEUR(minSaved) })}</Text>
-                <Text style={styles.legendSubText}>{t("chartLegendMax", { value: formatCurrencyEUR(maxSaved) })}</Text>
-              </View>
-            </View>
-          ) : null}
+            </>
+          ) : (
+            <Text style={styles.locked}>{t("chartsPremium")}</Text>
+          )}
         </View>
 
         <View style={styles.chartBox}>
@@ -182,20 +230,28 @@ export default function ProgressScreen() {
             <Text style={styles.chartTitle}>{t("chartTitleCigarettes")}</Text>
             <Text style={styles.chartValue}>{totalAvoided.toLocaleString(i18n.language || "fr-FR")}</Text>
           </View>
-          {isPremium ? <LineChart width={320} height={180} data={cigarettesSeries} /> : <Text style={styles.locked}>{t("chartsPremium")}</Text>}
           {isPremium ? (
-            <View style={styles.legendWrap}>
-              <View style={styles.legendRow}>
-                <View style={styles.legendLeft}>
-                  <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
-                  <Text style={styles.legendText}>{t("chartLegendSinceDate", { date: quitDateLabel })}</Text>
+            <>
+              {renderChartWithAxis({
+                data: cigarettesSeries,
+                minValue: 0,
+                maxValue: maxCigarettes,
+                unit: "cigarettes",
+                startLabel: formatMonthLabel(quitDate, i18n.language || "fr-FR"),
+                endLabel: formatMonthLabel(addDaysISO(quitDate, days), i18n.language || "fr-FR"),
+              })}
+              <View style={styles.legendWrap}>
+                <View style={styles.legendRow}>
+                  <View style={styles.legendLeft}>
+                    <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
+                    <Text style={styles.legendText}>{t("chartLegendSinceDate", { date: quitDateLabel })}</Text>
+                  </View>
                 </View>
               </View>
-              <View style={styles.legendRow}>
-                <Text style={styles.legendSubText}>{t("chartLegendMaxCigarettes", { value: maxCigarettes.toLocaleString(i18n.language || "fr-FR") })}</Text>
-              </View>
-            </View>
-          ) : null}
+            </>
+          ) : (
+            <Text style={styles.locked}>{t("chartsPremium")}</Text>
+          )}
         </View>
 
         <View style={styles.chartBox}>
@@ -276,11 +332,6 @@ export default function ProgressScreen() {
           )}
         </View>
 
-        <View style={styles.timeline}>
-          <Text style={styles.item}>{t("timeline24h")}</Text>
-          <Text style={styles.item}>{t("timeline1week")}</Text>
-          <Text style={[styles.item, !isPremium && styles.lockedText]}>{isPremium ? t("timeline1month") : t("timeline1monthPremium")}</Text>
-        </View>
       </ScrollView>
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} onUnlock={unlockPremium} savedAmountLabel={savedLabel} />
     </Screen>
@@ -350,6 +401,20 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 999,
     backgroundColor: theme.colors.primary,
+  },
+  chartAxisRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  axisLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  xAxisRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 6,
   },
   badgesWrap: {
     flexDirection: "row",

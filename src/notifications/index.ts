@@ -1,6 +1,8 @@
 import * as Notifications from "expo-notifications";
 import i18n from "../i18n";
 
+export type NotificationTime = { hour: number; minute: number };
+
 // Important: comportement en foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -32,26 +34,31 @@ export async function requestNotifPermissions(): Promise<boolean> {
   return !!req.granted;
 }
 
-/**
- * Planifie une notification quotidienne (ex: 9h00).
- * On annule d'abord les anciennes pour éviter les doublons.
- */
-export async function scheduleDailyMotivation(hour = 9, minute = 0): Promise<void> {
+export async function scheduleMotivationReminders(times: NotificationTime[]): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
+  if (times.length === 0) return;
 
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: i18n.t("notif.daily.title"),
-      body: i18n.t("notif.daily.body"),
-      data: { target: "dailyCheckin" },
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-      hour,
-      minute,
-      repeats: true,
-    },
-  });
+  await Promise.all(
+    times.map((time, index) =>
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: i18n.t("notif.daily.title"),
+          body: i18n.t("notif.daily.body"),
+          data: { target: "dailyCheckin", reminderId: index },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          hour: time.hour,
+          minute: time.minute,
+          repeats: true,
+        },
+      })
+    )
+  );
+}
+
+export async function scheduleDailyMotivation(hour = 9, minute = 0): Promise<void> {
+  return scheduleMotivationReminders([{ hour, minute }]);
 }
 
 /**
