@@ -154,7 +154,7 @@
   "shieldPremiumVisualTag": "IMMERSIVE PREMIUM MODE",
   "shieldStart": "Start 180s",
   "shieldPhase1": "Breathe slowly. You are stable.",
-  "shieldPhase2": "{{days}} smoke-free days Â· {{money}} saved",
+  "shieldPhase2": "{{days}} smoke-free days · {{money}} saved",
   "shieldPhase3": "You are taking back control.",
   "shieldDoneTitle": "You just protected your progress.",
   "shieldBack": "Back",
@@ -178,10 +178,12 @@
   "shieldStatsFreeTeaser": "Go Premium for full history and risk-hour analysis.",
   "shieldVariantTitle": "Visual style",
   "shieldVariantPremiumOnly": "Visual variants are Premium only.",
+  "shieldVariantRandomPremium": "Premium mode: a random visual variant is applied on each session.",
   "shieldVariant": {
     "random": "Random",
     "default": "Default",
-    "morphing": "Morphing",    "tension": "Tension"
+    "morphing": "Morphing",
+    "tension": "Tension"
   },
   "shieldCompletedShort": "completed",
   "shieldInterruptedShort": "interrupted",
@@ -240,5 +242,6 @@
     }
   }
 }
+
 
 
