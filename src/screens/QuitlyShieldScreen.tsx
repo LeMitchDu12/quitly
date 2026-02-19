@@ -3,7 +3,7 @@ import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View, Animate
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import Screen from "../components/Screen";
-import ShieldRing from "../components/shield/ShieldRing";
+import ShieldVisual, { type ShieldVariant } from "../components/shield/ShieldVisual";
 import ShieldPaywallModal from "../components/shield/ShieldPaywallModal";
 import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
@@ -23,6 +23,13 @@ import { formatHourRange, getShieldStatsSnapshot } from "../shield/shieldStats";
 
 type ShieldView = "session" | "stats";
 type SessionState = "idle" | "running" | "completed";
+
+const SHIELD_VARIANTS: ShieldVariant[] = ["default", "morphing", "glass", "tension"];
+
+function pickRandomVariant(): ShieldVariant {
+  const idx = Math.floor(Math.random() * SHIELD_VARIANTS.length);
+  return SHIELD_VARIANTS[idx] ?? "default";
+}
 
 function formatSessionDate(iso: string, locale: string) {
   const d = new Date(iso);
@@ -44,6 +51,7 @@ export default function QuitlyShieldScreen() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [statsTick, setStatsTick] = useState(0);
+  const [activeVariant, setActiveVariant] = useState<ShieldVariant>("default");
 
   const startedAtMsRef = useRef<number | null>(null);
   const completionHandledRef = useRef(false);
@@ -76,7 +84,7 @@ export default function QuitlyShieldScreen() {
   const stats = useMemo(() => getShieldStatsSnapshot(new Date()), [statsTick]);
 
   const freeUsed = Math.max(0, Math.min(SHIELD_FREE_WEEKLY_LIMIT, stats.thisWeekCount));
-  const freeRemaining = Math.max(0, SHIELD_FREE_WEEKLY_LIMIT - stats.thisWeekCount);
+  const shieldVariant: ShieldVariant = !isPremium ? "default" : activeVariant;
   const progress = Math.max(0, Math.min(1, elapsedSec / SHIELD_DURATION_SEC));
   const secondsLeft = Math.max(0, SHIELD_DURATION_SEC - elapsedSec);
   const phaseIndex = elapsedSec < 60 ? 1 : elapsedSec < 120 ? 2 : 3;
@@ -213,6 +221,9 @@ export default function QuitlyShieldScreen() {
 
     if (!isPremium) consumeFreeShieldWeeklySlot(new Date());
 
+    const pickedVariant: ShieldVariant = !isPremium ? "default" : pickRandomVariant();
+
+    setActiveVariant(pickedVariant);
     startedAtMsRef.current = Date.now();
     completionHandledRef.current = false;
     setElapsedSec(0);
@@ -259,11 +270,12 @@ export default function QuitlyShieldScreen() {
               <Text style={styles.quitText}>{t("shieldQuit")}</Text>
             </Pressable>
           </View>
-          <ShieldRing
+          <ShieldVisual
             progress={progress}
             secondsLeft={secondsLeft}
             phase={phaseIndex as 1 | 2 | 3}
-            beatEnabled={isPremium}
+            premiumFx={isPremium}
+            variant={shieldVariant}
           />
           <Animated.View
             style={[
@@ -290,7 +302,7 @@ export default function QuitlyShieldScreen() {
       return (
         <View style={styles.sessionWrap}>
           <Text style={styles.doneCheck}>GO</Text>
-          <ShieldRing progress={1} secondsLeft={0} phase={3} beatEnabled={isPremium} />
+          <ShieldVisual progress={1} secondsLeft={0} phase={3} premiumFx={isPremium} variant={shieldVariant} />
           <Text style={styles.doneTitle}>{t("shieldDoneTitle")}</Text>
           <Pressable style={styles.backButton} onPress={closeCompleted}>
             <Text style={styles.backButtonText}>{t("shieldBack")}</Text>
@@ -304,6 +316,9 @@ export default function QuitlyShieldScreen() {
         <Text style={styles.title}>{t("shieldTitle")}</Text>
         <Text style={styles.subtitle}>{t("shieldSubtitle")}</Text>
         <Text style={styles.subtitlePremium}>{t("shieldPremiumVisualTag")}</Text>
+        <Text style={styles.variantFreeHint}>
+          {isPremium ? t("shieldVariantRandomPremium") : t("shieldVariantPremiumOnly")}
+        </Text>
         {!isPremium && (
           <>
             <Text style={styles.limitText}>
@@ -604,6 +619,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.4,
     fontWeight: "800",
+  },
+  variantFreeHint: {
+    marginTop: theme.spacing.xs,
+    color: theme.colors.textSecondary,
+    textAlign: "center",
+    fontSize: 11,
+    marginBottom: theme.spacing.xs,
   },
   limitText: {
     color: theme.colors.textSecondary,
