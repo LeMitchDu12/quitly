@@ -12,6 +12,7 @@ import { RootStackParamList } from "../navigation/Root";
 import { StorageKeys } from "../storage/keys";
 import { clearStorage, getNumber, getString, getBool, setBool, setString } from "../storage/mmkv";
 import PaywallModal from "../components/PaywallModal";
+import PrimaryButton from "../components/PrimaryButton";
 import SecondaryButton from "../components/SecondaryButton";
 import { requestNotifPermissions, scheduleMotivationReminders, cancelAllNotifications } from "../notifications";
 import { NotificationTime, readNotificationTimes, saveNotificationTimes } from "../storage/notificationTimes";
@@ -76,8 +77,9 @@ export default function SettingsScreen() {
   const [, setTick] = useState(0);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [notificationTimes, setNotificationTimes] = useState<NotificationTime[]>(() => readNotificationTimes());
-  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [timeEditorVisible, setTimeEditorVisible] = useState(false);
   const [editingTime, setEditingTime] = useState<number>(0);
+  const [pendingTime, setPendingTime] = useState<NotificationTime>({ hour: 9, minute: 0 });
   const [pickerDate, setPickerDate] = useState(new Date());
 
   useFocusEffect(
@@ -123,19 +125,14 @@ export default function SettingsScreen() {
     readyDate.setHours(target.hour, target.minute, 0, 0);
     setPickerDate(readyDate);
     setEditingTime(index);
-    setTimePickerVisible(true);
+    setPendingTime(target);
+    setTimeEditorVisible(true);
   };
 
   const handleTimeChange = async (_: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
-    const targetIndex = editingTime >= notificationTimes.length ? 0 : editingTime;
-    const updated = [...notificationTimes];
-    updated[targetIndex] = { hour: selected.getHours(), minute: selected.getMinutes() };
-    setEditingTime(targetIndex);
-    await persistNotificationTimes(updated);
-    if (Platform.OS === "android") {
-      setTimePickerVisible(false);
-    }
+    setPickerDate(selected);
+    setPendingTime({ hour: selected.getHours(), minute: selected.getMinutes() });
   };
 
   const persistNotificationTimes = async (times: NotificationTime[]) => {
@@ -151,15 +148,28 @@ export default function SettingsScreen() {
     const newTimes = [...notificationTimes, { hour: 9, minute: 0 }];
     await persistNotificationTimes(newTimes);
     setEditingTime(newTimes.length - 1);
-    setTimePickerVisible(true);
+    setPendingTime(newTimes[newTimes.length - 1]);
+    setTimeEditorVisible(true);
   };
 
   const removeReminderTime = async (index: number) => {
     const updated = notificationTimes.filter((_, idx) => idx !== index);
     await persistNotificationTimes(updated);
     if (updated.length === 0) {
-      setTimePickerVisible(false);
+      setTimeEditorVisible(false);
     }
+  };
+
+  const confirmTimeChange = async () => {
+    const targetIndex = editingTime >= notificationTimes.length ? 0 : editingTime;
+    const updated = [...notificationTimes];
+    updated[targetIndex] = pendingTime;
+    setTimeEditorVisible(false);
+    await persistNotificationTimes(updated);
+  };
+
+  const cancelTimeChange = () => {
+    setTimeEditorVisible(false);
   };
 
   const toggleNotifications = async () => {
@@ -256,45 +266,36 @@ export default function SettingsScreen() {
                   </Text>
                   <View style={styles.notificationList}>
                     {notificationTimes.map((time, index) => (
-                    <View key={`${formatReminderTime(time)}-${index}`} style={styles.reminderRow}>
-                      <Pressable
-                        style={[
-                          styles.reminderRowLabel,
-                          editingTime === index && styles.reminderRowLabelActive,
-                        ]}
-                        onPress={() => openTimePicker(index)}
-                      >
-                        <Text
+                      <View key={`${formatReminderTime(time)}-${index}`} style={styles.reminderRow}>
+                        <Pressable
                           style={[
-                            styles.reminderRowText,
-                            editingTime === index && styles.reminderRowTextActive,
+                            styles.reminderRowLabel,
+                            editingTime === index && styles.reminderRowLabelActive,
                           ]}
+                          onPress={() => openTimePicker(index)}
                         >
-                          {formatReminderTime(time)}
-                        </Text>
-                      </Pressable>
-                      <Pressable style={styles.timeRemoveIcon} onPress={() => removeReminderTime(index)}>
-                        <Text style={styles.timeRemoveText}>×</Text>
-                      </Pressable>
-                    </View>
+                          <Text
+                            style={[
+                              styles.reminderRowText,
+                              editingTime === index && styles.reminderRowTextActive,
+                            ]}
+                          >
+                            {formatReminderTime(time)}
+                          </Text>
+                        </Pressable>
+                        <Pressable style={styles.timeRemoveIcon} onPress={() => removeReminderTime(index)}>
+                          <Text style={styles.timeRemoveText}>×</Text>
+                        </Pressable>
+                      </View>
                     ))}
                   </View>
-                  {timePickerVisible && (
-                    <View style={styles.timePickerCard}>
-                      <DateTimePicker
-                        value={pickerDate}
-                        mode="time"
-                        is24Hour
-                        display={Platform.OS === "ios" ? "inline" : "spinner"}
-                        onChange={handleTimeChange}
-                      />
-                    </View>
-                  )}
                 </>
               ) : (
                 <Text style={styles.hint}>{t("notificationsNoRemindersHint")}</Text>
               )}
-              <SecondaryButton title={t("notificationsAddReminder")} onPress={addReminderTime} />
+              <View style={styles.addReminderWrapper}>
+                <SecondaryButton title={t("notificationsAddReminder")} onPress={addReminderTime} />
+              </View>
               {notificationTimes.length >= 3 && (
                 <Text style={styles.hint}>{t("notificationsMaxReminders")}</Text>
               )}
@@ -339,10 +340,35 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
-      <PaywallModal
-        visible={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-        onUnlock={unlockPremium}
+      {timeEditorVisible && (
+        <View style={styles.timeEditorOverlay}>
+          <View style={styles.timeEditor}>
+            <Text style={styles.timeEditorTitle}>{t("notificationsEditTitle")}</Text>
+            <View style={styles.editorPickerWrap}>
+              <DateTimePicker
+                value={pickerDate}
+                mode="time"
+                is24Hour
+                display="spinner"
+                onChange={handleTimeChange}
+                textColor={theme.colors.textPrimary}
+              />
+            </View>
+            <View style={styles.editorActions}>
+              <View style={styles.editorButtonWrapper}>
+                <SecondaryButton title={t("settingsCancel")} onPress={cancelTimeChange} />
+              </View>
+              <View style={styles.editorButtonWrapper}>
+                <PrimaryButton title={t("settingsSave")} onPress={confirmTimeChange} />
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+    <PaywallModal
+      visible={paywallOpen}
+      onClose={() => setPaywallOpen(false)}
+      onUnlock={unlockPremium}
         savedAmountLabel={formatCurrencyEUR(0)}
       />
     </Screen>
@@ -462,5 +488,46 @@ const styles = StyleSheet.create({
   },
   reminderRowTextActive: {
     color: theme.colors.primary,
+  },
+  timeEditorOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  timeEditor: {
+    width: "90%",
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radius.lg,
+    padding: theme.spacing.md,
+  },
+  timeEditorTitle: {
+    color: theme.colors.textPrimary,
+    fontWeight: "900",
+    marginBottom: theme.spacing.sm,
+  },
+  editorActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: theme.spacing.md,
+    gap: 18,
+  },
+  editorButtonWrapper: {
+    flex: 1,
+  },
+  editorPickerWrap: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    paddingVertical: theme.spacing.sm,
+  },
+  editorPicker: {},
+  addReminderWrapper: {
+    marginTop: theme.spacing.sm,
   },
 });

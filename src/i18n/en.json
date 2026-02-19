@@ -94,7 +94,7 @@
   "notificationsScheduledAtTimes": "Planned for {{times}}.",
   "notificationsDisabledHint": "Notifications are turned off.",
   "notificationsNoRemindersHint": "No reminders yet. Tap 'Add reminder' to schedule one.",
-  "notificationsReminderLabel": "Reminder time",
+  "notificationsEditTitle": "Modify reminder",
   "notificationsRemoveReminder": "Remove reminder",
   "settingsCurrent": "Current",
   "settingsStatus": "Status",

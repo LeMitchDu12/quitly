@@ -94,7 +94,7 @@
   "notificationsScheduledAtTimes": "Planifié pour {{times}}.",
   "notificationsDisabledHint": "Les notifications sont désactivées.",
   "notificationsNoRemindersHint": "Aucun rappel pour l'instant. Ajoute-en un.",
-  "notificationsReminderLabel": "Horaire du rappel",
+  "notificationsEditTitle": "Modifier le rappel",
   "notificationsRemoveReminder": "Supprimer le rappel",
   "settingsCurrent": "Actuel",
   "settingsStatus": "Statut",
