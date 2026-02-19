@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { theme } from "../../theme";
 
@@ -19,10 +19,49 @@ export default function ShieldRing({
   const circumference = 2 * Math.PI * radius;
   const dashoffset = circumference * (1 - p);
   const donePercent = Math.round(p * 100);
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [pulse]);
+
+  const pulseScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.96, 1.04],
+  });
+  const pulseOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.25, 0.55],
+  });
 
   return (
     <View style={[styles.wrap, { width: size, height: size }]}>
-      <View style={styles.glowOuter} />
+      <Animated.View
+        style={[
+          styles.glowOuter,
+          {
+            transform: [{ scale: pulseScale }],
+            opacity: pulseOpacity,
+          },
+        ]}
+      />
       <View style={styles.glowInner} />
       <Svg width={size} height={size}>
         <Circle

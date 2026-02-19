@@ -1,5 +1,5 @@
-﻿import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View, Animated, Easing } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import Screen from "../components/Screen";
@@ -47,6 +47,10 @@ export default function QuitlyShieldScreen() {
 
   const startedAtMsRef = useRef<number | null>(null);
   const completionHandledRef = useRef(false);
+  const lastPhaseRef = useRef<number>(1);
+  const phaseFade = useRef(new Animated.Value(1)).current;
+  const phaseScale = useRef(new Animated.Value(1)).current;
+  const sparkOpacity = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
     useCallback(() => {
@@ -82,6 +86,65 @@ export default function QuitlyShieldScreen() {
     if (elapsedSec < 120) return t("shieldPhase2", { days: profile.days, money: savedLabel });
     return t("shieldPhase3");
   }, [elapsedSec, t, profile.days, savedLabel]);
+  const phaseIcon = useMemo(() => {
+    if (elapsedSec < 60) return "🫁";
+    if (elapsedSec < 120) return "💚";
+    return "🏆";
+  }, [elapsedSec]);
+
+  useEffect(() => {
+    if (sessionState !== "running") {
+      lastPhaseRef.current = phaseIndex;
+      return;
+    }
+    if (phaseIndex === lastPhaseRef.current) return;
+    lastPhaseRef.current = phaseIndex;
+
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(phaseFade, {
+          toValue: 0.55,
+          duration: 130,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(phaseFade, {
+          toValue: 1,
+          duration: 190,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.sequence([
+        Animated.timing(phaseScale, {
+          toValue: 0.97,
+          duration: 130,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(phaseScale, {
+          toValue: 1,
+          duration: 190,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.sequence([
+        Animated.timing(sparkOpacity, {
+          toValue: 0.85,
+          duration: 120,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sparkOpacity, {
+          toValue: 0,
+          duration: 280,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [phaseIndex, phaseFade, phaseScale, sessionState, sparkOpacity]);
 
   const refreshStats = () => setStatsTick((x) => x + 1);
 
@@ -185,6 +248,7 @@ export default function QuitlyShieldScreen() {
         <View style={styles.sessionWrap}>
           <View style={styles.sessionGlowA} />
           <View style={styles.sessionGlowB} />
+          <Animated.View pointerEvents="none" style={[styles.sparkOverlay, { opacity: sparkOpacity }]} />
           <View style={styles.runningHeader}>
             <View style={styles.phaseChip}>
               <Text style={styles.phaseChipText}>
@@ -196,9 +260,20 @@ export default function QuitlyShieldScreen() {
             </Pressable>
           </View>
           <ShieldRing progress={progress} secondsLeft={secondsLeft} />
-          <Text numberOfLines={1} style={styles.phaseText}>
-            {phaseText}
-          </Text>
+          <Animated.View
+            style={[
+              styles.phaseCard,
+              {
+                opacity: phaseFade,
+                transform: [{ scale: phaseScale }],
+              },
+            ]}
+          >
+            <Text style={styles.phaseIcon}>{phaseIcon}</Text>
+            <Text numberOfLines={1} style={styles.phaseText}>
+              {phaseText}
+            </Text>
+          </Animated.View>
           <View style={styles.phaseTrack}>
             <View style={[styles.phaseFill, { width: `${Math.round(progress * 100)}%` }]} />
           </View>
@@ -209,7 +284,7 @@ export default function QuitlyShieldScreen() {
     if (sessionState === "completed") {
       return (
         <View style={styles.sessionWrap}>
-          <Text style={styles.doneCheck}>OK</Text>
+          <Text style={styles.doneCheck}>GO</Text>
           <ShieldRing progress={1} secondsLeft={0} />
           <Text style={styles.doneTitle}>{t("shieldDoneTitle")}</Text>
           <Pressable style={styles.backButton} onPress={closeCompleted}>
@@ -223,6 +298,7 @@ export default function QuitlyShieldScreen() {
       <View style={styles.idleWrap}>
         <Text style={styles.title}>{t("shieldTitle")}</Text>
         <Text style={styles.subtitle}>{t("shieldSubtitle")}</Text>
+        <Text style={styles.subtitlePremium}>{t("shieldPremiumVisualTag")}</Text>
         {!isPremium && (
           <>
             <Text style={styles.limitText}>
@@ -408,6 +484,15 @@ const styles = StyleSheet.create({
     bottom: -90,
     left: -80,
   },
+  sparkOverlay: {
+    position: "absolute",
+    top: "34%",
+    left: "8%",
+    right: "8%",
+    height: 120,
+    borderRadius: theme.radius.lg,
+    backgroundColor: "rgba(74,222,128,0.22)",
+  },
   runningHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -432,11 +517,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   phaseText: {
-    marginTop: theme.spacing.md,
     color: theme.colors.textPrimary,
     textAlign: "center",
-    fontWeight: "700",
-    fontSize: 15,
+    fontWeight: "800",
+    fontSize: 16,
+  },
+  phaseCard: {
+    marginTop: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.25)",
+    backgroundColor: "rgba(74,222,128,0.08)",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  phaseIcon: {
+    fontSize: 18,
   },
   phaseTrack: {
     marginTop: theme.spacing.sm,
@@ -491,6 +591,14 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     textAlign: "center",
     marginTop: 8,
+  },
+  subtitlePremium: {
+    color: theme.colors.primary,
+    textAlign: "center",
+    marginTop: 4,
+    fontSize: 11,
+    letterSpacing: 0.4,
+    fontWeight: "800",
   },
   limitText: {
     color: theme.colors.textSecondary,
@@ -587,5 +695,6 @@ const styles = StyleSheet.create({
   recentDate: { color: theme.colors.textPrimary, fontWeight: "700" },
   recentMeta: { color: theme.colors.textSecondary, marginTop: 3, fontSize: 12 },
 });
+
 
 

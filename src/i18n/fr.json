@@ -151,6 +151,7 @@
   "shieldQuickHint": "Lance Quitly Shield et tiens 180 secondes.",
   "shieldTitle": "Quitly Shield",
   "shieldSubtitle": "Traverse l'envie en 180 secondes.",
+  "shieldPremiumVisualTag": "MODE PREMIUM IMMERSIF",
   "shieldStart": "Lancer 180s",
   "shieldPhase1": "Respire lentement. Tu tiens le cap.",
   "shieldPhase2": "{{days}} jours libres · {{money}} économisés",

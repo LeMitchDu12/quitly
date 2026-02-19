@@ -151,6 +151,7 @@
   "shieldQuickHint": "Start Quitly Shield and hold for 180 seconds.",
   "shieldTitle": "Quitly Shield",
   "shieldSubtitle": "Ride the urge in 180 seconds.",
+  "shieldPremiumVisualTag": "IMMERSIVE PREMIUM MODE",
   "shieldStart": "Start 180s",
   "shieldPhase1": "Breathe slowly. You are stable.",
   "shieldPhase2": "{{days}} smoke-free days · {{money}} saved",
@@ -231,3 +232,4 @@
     }
   }
 }
+
