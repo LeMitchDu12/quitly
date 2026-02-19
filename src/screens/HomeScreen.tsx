@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView, Platform } from "react-native";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Screen from "../components/Screen";
@@ -26,6 +27,33 @@ function formatDate(dateISO: string, locale: string) {
   }).format(d);
 }
 
+function parseISODate(value: string) {
+  const d = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return new Date();
+  return d;
+}
+
+function addDaysISO(dateISO: string, delta: number) {
+  const d = parseISODate(dateISO);
+  d.setDate(d.getDate() + delta);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function clampISODateToToday(dateISO: string) {
+  const candidate = parseISODate(dateISO);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const normalized = new Date(candidate.getFullYear(), candidate.getMonth(), candidate.getDate());
+  if (normalized > today) return todayLocalISODate();
+  const y = normalized.getFullYear();
+  const m = String(normalized.getMonth() + 1).padStart(2, "0");
+  const day = String(normalized.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 type Profile = {
   quitDate: string;
   cigsPerDay: number;
@@ -42,6 +70,8 @@ export default function HomeScreen() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [dailyRelapseMode, setDailyRelapseMode] = useState(false);
   const [dailyCigs, setDailyCigs] = useState(1);
+  const [selectedRelapseDate, setSelectedRelapseDate] = useState(todayLocalISODate());
+  const [showRelapseDatePicker, setShowRelapseDatePicker] = useState(false);
 
   const loadData = () => {
     const quitDate = getString(StorageKeys.quitDate) ?? todayLocalISODate();
@@ -91,17 +121,32 @@ export default function HomeScreen() {
   const today = todayLocalISODate();
   const todayCheckin = useMemo(() => checkins.find((entry) => entry.date === today), [checkins, today]);
 
-  const saveTodayCheckin = (smoked: number) => {
-    upsertDailyCheckin(today, smoked);
+  const saveCheckin = (dateISO: string, smoked: number) => {
+    upsertDailyCheckin(clampISODateToToday(dateISO), smoked);
     setCheckins(readDailyCheckins());
     setDailyRelapseMode(false);
     setDailyCigs(1);
+    setSelectedRelapseDate(todayLocalISODate());
+    setShowRelapseDatePicker(false);
+    if (smoked > 0) {
+      navigation.navigate("RelapseSupport", { savedAmountLabel: savedLabel });
+    }
   };
 
   const editTodayCheckin = () => {
     const initial = todayCheckin?.smoked ?? 0;
     setDailyCigs(initial);
+    setSelectedRelapseDate(today);
     setDailyRelapseMode(true);
+  };
+
+  const onRelapseDateChange = (_: DateTimePickerEvent, selected?: Date) => {
+    if (Platform.OS === "android") setShowRelapseDatePicker(false);
+    if (!selected) return;
+    const y = selected.getFullYear();
+    const m = String(selected.getMonth() + 1).padStart(2, "0");
+    const day = String(selected.getDate()).padStart(2, "0");
+    setSelectedRelapseDate(clampISODateToToday(`${y}-${m}-${day}`));
   };
 
   if (!profile || !stats) {
@@ -125,10 +170,52 @@ export default function HomeScreen() {
 
   const renderCheckinCard = () => {
     if (dailyRelapseMode) {
+      const yesterday = addDaysISO(today, -1);
+      const relapseDateLabel = formatDate(selectedRelapseDate, i18n.language || "fr-FR");
+      const isTodaySelected = selectedRelapseDate === today;
+      const isYesterdaySelected = selectedRelapseDate === yesterday;
+
       return (
         <View style={styles.checkinCard}>
           <Text style={styles.checkinTitle}>{t("dailyCheckinTitle")}</Text>
           <Text style={styles.checkinSubtitle}>{t("dailyCheckinSubtitle")}</Text>
+          <Text style={styles.counterLabel}>{t("dailyCheckinDateLabel")}</Text>
+          <View style={styles.quickRow}>
+            <Pressable
+              style={[styles.quickChip, isTodaySelected && styles.quickChipActive]}
+              onPress={() => setSelectedRelapseDate(today)}
+            >
+              <Text style={[styles.quickText, isTodaySelected && styles.quickTextActive]}>{t("onboardingToday")}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.quickChip, isYesterdaySelected && styles.quickChipActive]}
+              onPress={() => setSelectedRelapseDate(yesterday)}
+            >
+              <Text style={[styles.quickText, isYesterdaySelected && styles.quickTextActive]}>{t("onboardingYesterday")}</Text>
+            </Pressable>
+            {Platform.OS === "android" ? (
+              <Pressable style={styles.quickChip} onPress={() => setShowRelapseDatePicker(true)}>
+                <Text style={styles.quickText}>{t("onboardingPickDate")}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={styles.dateCard}>
+            <Text style={styles.dateLabel}>{t("settingsSelectedDate")}</Text>
+            <Text style={styles.dateValue}>{relapseDateLabel}</Text>
+          </View>
+          {(showRelapseDatePicker || Platform.OS === "ios") && (
+            <View style={styles.pickerWrap}>
+              <DateTimePicker
+                value={parseISODate(selectedRelapseDate)}
+                mode="date"
+                maximumDate={new Date()}
+                display={Platform.OS === "ios" ? "inline" : "default"}
+                onChange={onRelapseDateChange}
+                themeVariant="dark"
+                style={styles.datePicker}
+              />
+            </View>
+          )}
           <Text style={styles.counterLabel}>{t("dailyCheckinHowMany")}</Text>
           <View style={styles.counterRow}>
             <Pressable style={styles.counterButton} onPress={() => setDailyCigs((v) => Math.max(0, v - 1))}>
@@ -140,7 +227,7 @@ export default function HomeScreen() {
             </Pressable>
           </View>
           <View style={styles.checkinActions}>
-            <Pressable style={[styles.checkinButton, styles.successButton]} onPress={() => saveTodayCheckin(dailyCigs)}>
+            <Pressable style={[styles.checkinButton, styles.successButton]} onPress={() => saveCheckin(selectedRelapseDate, dailyCigs)}>
               <Text style={styles.checkinButtonText}>{t("settingsSave")}</Text>
             </Pressable>
             <Pressable
@@ -148,6 +235,8 @@ export default function HomeScreen() {
               onPress={() => {
                 setDailyRelapseMode(false);
                 setDailyCigs(1);
+                setSelectedRelapseDate(today);
+                setShowRelapseDatePicker(false);
               }}
             >
               <Text style={styles.checkinButtonText}>{t("settingsCancel")}</Text>
@@ -177,7 +266,7 @@ export default function HomeScreen() {
         <Text style={styles.checkinTitle}>{t("dailyCheckinTitle")}</Text>
         <Text style={styles.checkinSubtitle}>{t("dailyCheckinSubtitle")}</Text>
         <View style={styles.checkinActions}>
-          <Pressable style={[styles.checkinButton, styles.successButton]} onPress={() => saveTodayCheckin(0)}>
+          <Pressable style={[styles.checkinButton, styles.successButton]} onPress={() => saveCheckin(today, 0)}>
             <Text style={styles.checkinButtonText}>{t("dailyCheckinNoRelapse")}</Text>
           </Pressable>
           <Pressable
@@ -185,6 +274,8 @@ export default function HomeScreen() {
             onPress={() => {
               setDailyRelapseMode(true);
               setDailyCigs(1);
+              setSelectedRelapseDate(today);
+              setShowRelapseDatePicker(false);
             }}
           >
             <Text style={styles.checkinButtonText}>{t("dailyCheckinYesRelapse")}</Text>
@@ -407,6 +498,49 @@ const styles = StyleSheet.create({
   },
   counterButtonText: { color: theme.colors.textPrimary, fontSize: 20, fontWeight: "700" },
   counterValue: { color: theme.colors.textPrimary, fontSize: 20, fontWeight: "900", minWidth: 24, textAlign: "center" },
+  quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  quickChip: {
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    backgroundColor: "transparent",
+  },
+  quickChipActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.elevated,
+  },
+  quickText: {
+    color: theme.colors.textPrimary,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  quickTextActive: {
+    color: theme.colors.primary,
+  },
+  dateCard: {
+    marginBottom: 10,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.elevated,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dateLabel: { color: theme.colors.textSecondary, fontSize: 12 },
+  dateValue: { color: theme.colors.textPrimary, fontWeight: "800", marginTop: 4 },
+  pickerWrap: {
+    marginBottom: 10,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.elevated,
+    padding: 8,
+    overflow: "hidden",
+    alignItems: "stretch",
+  },
+  datePicker: { width: "100%", maxWidth: "100%" },
   checkinDone: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,

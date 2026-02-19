@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next";
 import { RootStackParamList } from "../../navigation/Root";
 import Screen from "../../components/Screen";
 import PrimaryButton from "../../components/PrimaryButton";
-import SecondaryButton from "../../components/SecondaryButton";
 import OnboardingHeader from "../../components/OnboardingHeader";
 import { theme } from "../../theme";
 import { StorageKeys } from "../../storage/keys";
@@ -137,7 +136,7 @@ export default function QuitDateScreen({ navigation }: Props) {
           <Text style={styles.previewHint}>{t("onboardingPreviewHint")}</Text>
         </View>
 
-        {showPicker && (
+        {(Platform.OS === "ios" || showPicker) && (
           <View style={styles.pickerWrap}>
             <DateTimePicker
               value={date}
@@ -146,9 +145,8 @@ export default function QuitDateScreen({ navigation }: Props) {
               display={Platform.OS === "ios" ? "inline" : "default"}
               onChange={onChange}
               themeVariant="dark"
+              style={styles.datePicker}
             />
-            {Platform.OS === "ios" && <View style={{ height: theme.spacing.sm }} />}
-            {Platform.OS === "ios" && <SecondaryButton title={t("settingsDone")} onPress={() => setShowPicker(false)} />}
           </View>
         )}
       </ScrollView>
@@ -208,7 +206,10 @@ const styles = StyleSheet.create({
     padding: 10,
     borderWidth: 1,
     borderColor: theme.colors.divider,
+    overflow: "hidden",
+    alignItems: "stretch",
   },
+  datePicker: { width: "100%", maxWidth: "100%" },
 
   ctaBar: {
     position: "absolute",

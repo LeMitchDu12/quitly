@@ -1,6 +1,7 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View, Animated, Easing } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTranslation } from "react-i18next";
 import Screen from "../components/Screen";
 import ShieldVisual, { type ShieldVariant } from "../components/shield/ShieldVisual";
@@ -20,6 +21,7 @@ import {
   type ShieldSession,
 } from "../shield/shieldStorage";
 import { formatHourRange, getShieldStatsSnapshot } from "../shield/shieldStats";
+import type { RootStackParamList } from "../navigation/Root";
 
 type ShieldView = "session" | "stats";
 type SessionState = "idle" | "running" | "completed";
@@ -44,12 +46,13 @@ function formatSessionDate(iso: string, locale: string) {
 
 export default function QuitlyShieldScreen() {
   const { t, i18n } = useTranslation();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [isPremium, setIsPremium] = useState<boolean>(getBool(StorageKeys.isPremium) ?? false);
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const [view, setView] = useState<ShieldView>("session");
   const [elapsedSec, setElapsedSec] = useState(0);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [pendingJournalAfterUnlock, setPendingJournalAfterUnlock] = useState(false);
   const [statsTick, setStatsTick] = useState(0);
   const [activeVariant, setActiveVariant] = useState<ShieldVariant>("default");
 
@@ -251,6 +254,19 @@ export default function QuitlyShieldScreen() {
     setBool(StorageKeys.isPremium, true);
     setIsPremium(true);
     setPaywallOpen(false);
+    if (pendingJournalAfterUnlock) {
+      setPendingJournalAfterUnlock(false);
+      navigation.navigate("JournalCreate", { linkedToShield: true });
+    }
+  };
+
+  const onAddJournalNote = () => {
+    if (!isPremium) {
+      setPendingJournalAfterUnlock(true);
+      setPaywallOpen(true);
+      return;
+    }
+    navigation.navigate("JournalCreate", { linkedToShield: true });
   };
 
   const renderSessionPanel = () => {
@@ -304,6 +320,9 @@ export default function QuitlyShieldScreen() {
           <Text style={styles.doneCheck}>GO</Text>
           <ShieldVisual progress={1} secondsLeft={0} phase={3} premiumFx={isPremium} variant={shieldVariant} />
           <Text style={styles.doneTitle}>{t("shieldDoneTitle")}</Text>
+          <Pressable style={styles.noteButton} onPress={onAddJournalNote}>
+            <Text style={styles.noteButtonText}>{t("journalAddNote")}</Text>
+          </Pressable>
           <Pressable style={styles.backButton} onPress={closeCompleted}>
             <Text style={styles.backButtonText}>{t("shieldBack")}</Text>
           </Pressable>
@@ -437,7 +456,10 @@ export default function QuitlyShieldScreen() {
 
       <ShieldPaywallModal
         visible={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
+        onClose={() => {
+          setPaywallOpen(false);
+          setPendingJournalAfterUnlock(false);
+        }}
         onUnlock={unlockPremium}
         savedAmountLabel={savedLabel}
       />
@@ -596,6 +618,20 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: theme.colors.textPrimary,
     fontWeight: "800",
+  },
+  noteButton: {
+    marginTop: theme.spacing.sm,
+    alignSelf: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "transparent",
+  },
+  noteButtonText: {
+    color: theme.colors.textPrimary,
+    fontWeight: "700",
   },
   idleWrap: {
     flex: 1,

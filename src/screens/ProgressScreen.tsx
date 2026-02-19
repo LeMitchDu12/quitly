@@ -1,6 +1,7 @@
 ﻿import React, { useCallback, useMemo, useState } from "react";
 import { Text, View, StyleSheet, ScrollView, Pressable } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTranslation } from "react-i18next";
 import Screen from "../components/Screen";
 import LineChart from "../components/LineChart";
@@ -12,6 +13,10 @@ import { cigarettesAvoided, daysSince, moneySaved, moneySavedFromCigarettes } fr
 import { formatCurrencyEUR } from "../utils/format";
 import { todayLocalISODate } from "../utils/date";
 import { DailyCheckin, lastRelapseDate, readDailyCheckins, smokedSinceUntil, totalSmokedSince } from "../storage/checkins";
+import type { RootStackParamList } from "../navigation/Root";
+import { analyzeJournalPatterns } from "../journal/journalInsights";
+import { readJournalEntries } from "../journal/journalStorage";
+import type { JournalEntry } from "../journal/journalTypes";
 
 type ProgressProfile = {
   isPremium: boolean;
@@ -58,8 +63,10 @@ function formatMonthLabel(dateISO: string, locale: string) {
 
 export default function ProgressScreen() {
   const { t, i18n } = useTranslation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [profile, setProfile] = useState<ProgressProfile>(() => readProfile());
   const [checkins, setCheckins] = useState<DailyCheckin[]>(() => readDailyCheckins());
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => readJournalEntries());
   const [paywallOpen, setPaywallOpen] = useState(false);
   const { isPremium, quitDate, cigsPerDay, pricePerPack, cigsPerPack } = profile;
 
@@ -67,6 +74,7 @@ export default function ProgressScreen() {
     useCallback(() => {
       setProfile(readProfile());
       setCheckins(readDailyCheckins());
+      setJournalEntries(readJournalEntries());
     }, [])
   );
 
@@ -116,6 +124,15 @@ export default function ProgressScreen() {
   ];
   const maxProjection = Math.max(...projections.map((p) => p.value), 1);
   const savedLabel = formatCurrencyEUR(totalSaved);
+  const journalPatterns = useMemo(() => analyzeJournalPatterns(journalEntries), [journalEntries]);
+
+  const openJournal = () => {
+    if (!isPremium) {
+      setPaywallOpen(true);
+      return;
+    }
+    navigation.navigate("JournalList");
+  };
 
   const renderChartWithAxis = ({
     data,
@@ -195,6 +212,42 @@ export default function ProgressScreen() {
         </View>
 
         <Text style={styles.title}>{t("progress")}</Text>
+
+        <View style={styles.chartBox}>
+          <View style={styles.chartHeaderRow}>
+            <View>
+              <Text style={styles.chartTitle}>{t("journalTitle")}</Text>
+              <Text style={styles.legendSubText}>{t("journalInsightsSubtitle")}</Text>
+            </View>
+            <Pressable style={styles.inlineButton} onPress={openJournal}>
+              <Text style={styles.inlineButtonText}>{t("journalOpenButton")}</Text>
+            </Pressable>
+          </View>
+
+          {isPremium ? (
+            <View style={styles.historyWrap}>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyLabel}>{t("journalTotalEntries")}</Text>
+                <Text style={styles.historyValue}>{journalEntries.length}</Text>
+              </View>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyLabel}>{t("journalStressRate")}</Text>
+                <Text style={styles.historyValue}>{journalPatterns.stressRate}%</Text>
+              </View>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyLabel}>{t("journalCravingLinkedRate")}</Text>
+                <Text style={styles.historyValue}>{journalPatterns.cravingLinked}%</Text>
+              </View>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyLabel}>{t("journalRelapseLinkedRate")}</Text>
+                <Text style={styles.historyValue}>{journalPatterns.relapseLinked}%</Text>
+              </View>
+              <Text style={styles.legendSubText}>{t("journalInsightText")}</Text>
+            </View>
+          ) : (
+            <Text style={styles.locked}>{t("journalPremiumBody")}</Text>
+          )}
+        </View>
 
         <View style={styles.chartBox}>
           <Text style={styles.chartTitle}>🏅 {t("relapseBadgesTitle")}</Text>
@@ -374,9 +427,22 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   chartHeader: { marginBottom: 10 },
+  chartHeaderRow: { marginBottom: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   chartTitle: { color: theme.colors.textSecondary, fontWeight: "700" },
   chartValue: { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "800", marginTop: 4 },
   locked: { color: theme.colors.textSecondary, textAlign: "center", paddingVertical: 20 },
+  inlineButton: {
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  inlineButtonText: {
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
   legendWrap: { marginTop: 10 },
   legendRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 6 },
   legendLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
