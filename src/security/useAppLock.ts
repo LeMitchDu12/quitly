@@ -102,37 +102,6 @@ export function useAppLock() {
     setIsLocked(false);
   }, []);
 
-  const unlockBiometricFirst = useCallback(
-    async (onSuccessStart?: () => void) => {
-      if (!lockEnabled) {
-        setIsLocked(false);
-        return true;
-      }
-
-      setIsUnlocking(true);
-      try {
-        setLastUnlockError(null);
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: "Unlock Quitly",
-          disableDeviceFallback: true,
-          cancelLabel: undefined,
-        });
-        const ok = !!result.success;
-
-        if (!ok) {
-          setLastUnlockError(result.error ?? "biometric_failed");
-          return false;
-        }
-        await finalizeUnlock(onSuccessStart);
-        return true;
-      } finally {
-        setIsUnlocking(false);
-      }
-    },
-    [lockEnabled, finalizeUnlock]
-  );
-
   const unlockWithDeviceCode = useCallback(
     async (onSuccessStart?: () => void) => {
       if (!lockEnabled) {
@@ -161,6 +130,42 @@ export function useAppLock() {
       }
     },
     [lockEnabled, finalizeUnlock]
+  );
+
+  const unlockBiometricFirst = useCallback(
+    async (onSuccessStart?: () => void) => {
+      if (!lockEnabled) {
+        setIsLocked(false);
+        return true;
+      }
+
+      const biometricPreferred = getBool(StorageKeys.securityBiometricPreferred) ?? true;
+      if (!biometricPreferred) {
+        return unlockWithDeviceCode(onSuccessStart);
+      }
+
+      setIsUnlocking(true);
+      try {
+        setLastUnlockError(null);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: "Unlock Quitly",
+          disableDeviceFallback: true,
+          cancelLabel: undefined,
+        });
+        const ok = !!result.success;
+
+        if (!ok) {
+          setLastUnlockError(result.error ?? "biometric_failed");
+          return false;
+        }
+        await finalizeUnlock(onSuccessStart);
+        return true;
+      } finally {
+        setIsUnlocking(false);
+      }
+    },
+    [lockEnabled, finalizeUnlock, unlockWithDeviceCode]
   );
 
   const unlock = unlockBiometricFirst;
