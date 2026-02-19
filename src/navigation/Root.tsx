@@ -7,6 +7,7 @@ import ConsumptionScreen from "../screens/onboarding/ConsumptionScreen";
 import ProjectionScreen from "../screens/onboarding/ProjectionScreen";
 import PaywallScreen from "../screens/onboarding/PaywallScreen";
 import SettingsEditScreen from "../screens/SettingsEditScreen";
+import QuitlyShieldScreen from "../screens/QuitlyShieldScreen";
 import { ensureProfileDefaults, isOnboardingComplete } from "../storage/profile";
 import { theme } from "../theme";
 
@@ -18,6 +19,7 @@ export type RootStackParamList = {
   Projection: undefined;
   Paywall: undefined;
   SettingsEdit: undefined;
+  QuitlyShield: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -42,6 +44,7 @@ export default function RootNavigator() {
       <Stack.Screen name="Projection" component={ProjectionScreen} />
       <Stack.Screen name="Paywall" component={PaywallScreen} />
       <Stack.Screen name="SettingsEdit" component={SettingsEditScreen} />
+      <Stack.Screen name="QuitlyShield" component={QuitlyShieldScreen} />
       <Stack.Screen name="Tabs" component={Tabs} />
     </Stack.Navigator>
   );

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Screen from "../components/Screen";
 import StatCard from "../components/StatCard";
 import SecondaryButton from "../components/SecondaryButton";
@@ -13,6 +14,7 @@ import { daysSince, cigarettesAvoided, moneySavedFromCigarettes, timeGainedHours
 import { formatCurrencyEUR } from "../utils/format";
 import { todayLocalISODate } from "../utils/date";
 import { DailyCheckin, lastRelapseDate, readDailyCheckins, totalSmokedSince, upsertDailyCheckin } from "../storage/checkins";
+import type { RootStackParamList } from "../navigation/Root";
 
 function formatDate(dateISO: string, locale: string) {
   const d = new Date(`${dateISO}T00:00:00`);
@@ -34,6 +36,7 @@ type Profile = {
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [checkins, setCheckins] = useState<DailyCheckin[]>([]);
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -229,6 +232,11 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        <Pressable style={styles.urgeButton} onPress={() => navigation.navigate("QuitlyShield")}>
+          <Text style={styles.urgeButtonText}>{t("shieldQuickCta")}</Text>
+          <Text style={styles.urgeButtonHint}>{t("shieldQuickHint")}</Text>
+        </Pressable>
+
         {showDailyCheckin ? renderCheckinCard() : null}
         <Text style={styles.statsTitle}>{t("progress")}</Text>
         <StatCard icon="€" value={savedLabel} label={t("saved")} />
@@ -338,6 +346,32 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 16,
     marginBottom: theme.spacing.xs,
+  },
+  urgeButton: {
+    width: "100%",
+    marginBottom: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.45)",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "rgba(74,222,128,0.12)",
+    shadowColor: "#4ADE80",
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 2,
+  },
+  urgeButtonText: {
+    color: theme.colors.primary,
+    fontWeight: "900",
+    fontSize: 15,
+  },
+  urgeButtonHint: {
+    marginTop: 2,
+    color: theme.colors.textSecondary,
+    fontWeight: "600",
+    fontSize: 12,
   },
   checkinCard: {
     backgroundColor: theme.colors.surface,

@@ -10,6 +10,10 @@ export const StorageKeys = {
   dailyCheckins: "dailyCheckins",
   pendingAction: "pendingAction",
   notificationTimes: "notificationTimes",
+  shieldSessions: "shield_sessions",
+  shieldWeekKey: "shield_weekKey",
+  shieldWeekCount: "shield_weekCount",
+  shieldTotalCompleted: "shield_totalCompleted",
 } as const;
 
 export type StorageKey = typeof StorageKeys[keyof typeof StorageKeys];
