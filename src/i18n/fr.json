@@ -143,6 +143,8 @@
   "relapseBadgeDays": "{{days}} jours",
   "premiumRelapseInsightsTeaser": "Premium : badges de série et suivi rechute détaillé",
   "relapseHistoryTitle": "Historique rechutes",
+  "relapseDailyChartTitle": "Rechutes jour par jour",
+  "relapseDailyChartSubtitle": "21 derniers jours",
   "relapseHistoryThisWeek": "Cette semaine",
   "relapseHistoryLast30Days": "30 derniers jours",
   "relapseHistoryCigsAndDays": "{{cigs}} cigarettes sur {{days}} jour(s)",

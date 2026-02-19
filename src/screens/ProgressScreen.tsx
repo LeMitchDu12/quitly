@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTranslation } from "react-i18next";
 import Screen from "../components/Screen";
 import LineChart from "../components/LineChart";
+import BarChart from "../components/BarChart";
 import PaywallModal from "../components/PaywallModal";
 import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
@@ -53,6 +54,10 @@ function addDaysISO(dateISO: string, days: number) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function buildDaysRange(toDateISO: string, daysCount: number) {
+  return Array.from({ length: daysCount }, (_, idx) => addDaysISO(toDateISO, -(daysCount - 1 - idx)));
 }
 
 function formatMonthLabel(dateISO: string, locale: string) {
@@ -193,6 +198,17 @@ export default function ProgressScreen() {
     return { segments, max };
   }, [checkins, todayISO, t]);
 
+  const relapseDaily = useMemo(() => {
+    const range = buildDaysRange(todayISO, 21);
+    const smokedByDate = new Map<string, number>();
+    checkins.forEach((entry) => {
+      smokedByDate.set(entry.date, entry.smoked);
+    });
+    const values = range.map((dateISO) => smokedByDate.get(dateISO) ?? 0);
+    const total = values.reduce((sum, value) => sum + value, 0);
+    return { range, values, total };
+  }, [checkins, todayISO]);
+
   const unlockPremium = () => {
     setBool(StorageKeys.isPremium, true);
     setProfile((p) => ({ ...p, isPremium: true }));
@@ -247,6 +263,23 @@ export default function ProgressScreen() {
           ) : (
             <Text style={styles.locked}>{t("journalPremiumBody")}</Text>
           )}
+        </View>
+
+        <View style={styles.chartBox}>
+          <View style={styles.chartHeader}>
+            <Text style={styles.chartTitle}>{t("relapseDailyChartTitle")}</Text>
+            <Text style={styles.chartValue}>{t("relapseHistorySmokedValue", { value: relapseDaily.total })}</Text>
+          </View>
+          <BarChart width={320} height={170} data={relapseDaily.values} />
+          <View style={styles.xAxisRow}>
+            <Text style={styles.axisLabel}>
+              {formatDateForLocale(relapseDaily.range[0] ?? todayISO, i18n.language || "fr-FR")}
+            </Text>
+            <Text style={styles.axisLabel}>
+              {formatDateForLocale(relapseDaily.range[relapseDaily.range.length - 1] ?? todayISO, i18n.language || "fr-FR")}
+            </Text>
+          </View>
+          <Text style={styles.legendSubText}>{t("relapseDailyChartSubtitle")}</Text>
         </View>
 
         <View style={styles.chartBox}>
