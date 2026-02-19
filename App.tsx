@@ -2,11 +2,11 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
-import "./src/i18n"; // init i18n
+import i18n from "./src/i18n";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import RootNavigator from "./src/navigation/Root"; 
 import { theme } from "./src/theme";
-import { hydrateStorage, setString } from "./src/storage/mmkv";
+import { getString, hydrateStorage, setString } from "./src/storage/mmkv";
 import { StorageKeys } from "./src/storage/keys";
 import { goToHomeTab, navigationRef } from "./src/navigation";
 import { useAppLock } from "./src/security/useAppLock";
@@ -39,6 +39,12 @@ export default function App() {
 
   useEffect(() => {
     hydrateStorage()
+      .then(async () => {
+        const savedLanguage = getString(StorageKeys.language);
+        if (savedLanguage === "fr" || savedLanguage === "en") {
+          await i18n.changeLanguage(savedLanguage);
+        }
+      })
       .catch(() => {
         // App can continue with defaults even if hydration fails.
       })
