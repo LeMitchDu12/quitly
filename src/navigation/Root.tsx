@@ -12,6 +12,7 @@ import JournalListScreen from "../screens/JournalListScreen";
 import JournalCreateScreen from "../screens/JournalCreateScreen";
 import JournalDetailScreen from "../screens/JournalDetailScreen";
 import RelapseSupportScreen from "../screens/RelapseSupportScreen";
+import MonthlyReportScreen from "../screens/MonthlyReportScreen";
 import { ensureProfileDefaults, isOnboardingComplete } from "../storage/profile";
 import { theme } from "../theme";
 
@@ -28,6 +29,7 @@ export type RootStackParamList = {
   JournalCreate: { linkedToShield?: boolean; linkedToRelapse?: boolean } | undefined;
   JournalDetail: { entryId: string };
   RelapseSupport: { savedAmountLabel?: string } | undefined;
+  MonthlyReport: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -57,6 +59,7 @@ export default function RootNavigator() {
       <Stack.Screen name="JournalCreate" component={JournalCreateScreen} />
       <Stack.Screen name="JournalDetail" component={JournalDetailScreen} />
       <Stack.Screen name="RelapseSupport" component={RelapseSupportScreen} />
+      <Stack.Screen name="MonthlyReport" component={MonthlyReportScreen} />
       <Stack.Screen name="Tabs" component={Tabs} />
     </Stack.Navigator>
   );

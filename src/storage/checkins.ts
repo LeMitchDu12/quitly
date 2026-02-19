@@ -1,6 +1,7 @@
 import { StorageKeys } from "./keys";
 import { getString, setString } from "./mmkv";
 import { todayLocalISODate } from "../utils/date";
+import { upsertDailyStatusFromCheckin } from "../reports/reportStorage";
 
 export type DailyCheckin = {
   date: string;
@@ -47,6 +48,7 @@ export function upsertDailyCheckin(date: string, smoked: number) {
   }
   entries.sort((a, b) => a.date.localeCompare(b.date));
   writeDailyCheckins(entries);
+  upsertDailyStatusFromCheckin({ date, smoked: cleanSmoked });
 }
 
 export function getTodayCheckin(): DailyCheckin | undefined {

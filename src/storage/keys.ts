@@ -16,6 +16,10 @@ export const StorageKeys = {
   shieldTotalCompleted: "shield_totalCompleted",
   shieldVariantMode: "shield_variantMode",
   journalEntries: "journal_entries",
+  dailyStatusV1: "daily_status_v1",
+  monthlyReportsV1: "monthly_reports_v1",
+  monthlyReportNotifEnabled: "monthly_report_notif_enabled",
+  monthlyReportNotifFeatureFlag: "monthly_report_notif_feature_flag",
   securityLockEnabled: "security_lock_enabled",
   securityBiometricPreferred: "security_biometric_preferred",
 } as const;

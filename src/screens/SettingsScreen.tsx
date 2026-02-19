@@ -23,6 +23,11 @@ import {
 import { todayLocalISODate } from "../utils/date";
 import { formatCurrencyEUR } from "../utils/format";
 import { authenticateWithBiometrics, isBiometricAvailable } from "../security/useAppLock";
+import {
+  isMonthlyReportNotificationEnabled,
+  isMonthlyReportNotificationFeatureEnabled,
+  setMonthlyReportNotificationEnabled,
+} from "../reports/reportStorage";
 
 type EditorTarget = { kind: "check" } | { kind: "passive"; index: number } | null;
 
@@ -111,6 +116,8 @@ export default function SettingsScreen() {
   const isPremium = getBool(StorageKeys.isPremium) ?? false;
   const notificationsEnabledPref = getBool(StorageKeys.notificationsEnabled) ?? false;
   const notificationsEnabled = notificationsEnabledPref && isPremium;
+  const monthlyReportNotifFeatureEnabled = isMonthlyReportNotificationFeatureEnabled();
+  const monthlyReportNotifEnabled = isMonthlyReportNotificationEnabled();
   const lockEnabled = getBool(StorageKeys.securityLockEnabled) ?? false;
   const biometricPreferred = getBool(StorageKeys.securityBiometricPreferred) ?? true;
   const language =
@@ -256,6 +263,11 @@ export default function SettingsScreen() {
     }
   };
 
+  const toggleMonthlyReportNotification = () => {
+    setMonthlyReportNotificationEnabled(!monthlyReportNotifEnabled);
+    refresh();
+  };
+
   const restorePurchases = async () => {
     Alert.alert(t("restore"), t("settingsRestoreNotConnected"));
   };
@@ -389,6 +401,20 @@ export default function SettingsScreen() {
               <Text style={styles.hint}>{t("notificationsPremiumHint")}</Text>
               <View style={{ height: theme.spacing.sm }} />
               <SecondaryButton title={t("unlock")} onPress={() => setPaywallOpen(true)} />
+            </View>
+          )}
+
+          {isPremium && monthlyReportNotifFeatureEnabled && (
+            <View style={styles.notificationGroup}>
+              <Text style={styles.groupTitle}>{t("settingsMonthlyReportReady")}</Text>
+              <Text style={styles.hint}>{t("settingsMonthlyReportReadyHint")}</Text>
+              <View style={styles.chipsRow}>
+                <Chip
+                  title={monthlyReportNotifEnabled ? t("settingsDisable") : t("settingsEnable")}
+                  onPress={toggleMonthlyReportNotification}
+                  tone={monthlyReportNotifEnabled ? "danger" : "primary"}
+                />
+              </View>
             </View>
           )}
         </View>

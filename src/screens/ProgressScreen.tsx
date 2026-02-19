@@ -228,6 +228,10 @@ export default function ProgressScreen() {
         </View>
 
         <Text style={styles.title}>{t("progress")}</Text>
+        <Pressable style={styles.monthlyReportEntry} onPress={() => navigation.navigate("MonthlyReport")}>
+          <Text style={styles.monthlyReportEntryTitle}>{t("monthly_report.title")}</Text>
+          <Text style={styles.monthlyReportEntrySub}>{t("monthly_report.open_hint")}</Text>
+        </Pressable>
 
         <View style={styles.chartBox}>
           <View style={styles.chartHeaderRow}>
@@ -453,6 +457,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   title: { color: theme.colors.textPrimary, fontSize: theme.typography.h2.fontSize, fontWeight: "800" },
+  monthlyReportEntry: {
+    marginTop: theme.spacing.sm,
+    backgroundColor: "#131821",
+    borderWidth: 1,
+    borderColor: "#273040",
+    borderRadius: theme.radius.lg,
+    padding: 14,
+  },
+  monthlyReportEntryTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  monthlyReportEntrySub: {
+    color: theme.colors.textSecondary,
+    marginTop: 4,
+    fontSize: 12,
+  },
   chartBox: {
     marginTop: theme.spacing.md,
     backgroundColor: theme.colors.surface,
