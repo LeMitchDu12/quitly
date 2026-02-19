@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import "./src/i18n"; // init i18n
@@ -9,6 +9,8 @@ import { theme } from "./src/theme";
 import { hydrateStorage, setString } from "./src/storage/mmkv";
 import { StorageKeys } from "./src/storage/keys";
 import { goToHomeTab, navigationRef } from "./src/navigation";
+import { useAppLock } from "./src/security/useAppLock";
+import AppLockScreen from "./src/security/AppLockScreen";
 
 const navTheme = {
   ...DefaultTheme,
@@ -23,6 +25,7 @@ const navTheme = {
 };
 
 export default function App() {
+  const { isLocked, unlock, isUnlocking, syncFromStorage } = useAppLock();
   const [isReady, setIsReady] = useState(false);
   const [navReady, setNavReady] = useState(false);
   const [pendingNotifTarget, setPendingNotifTarget] = useState<string | null>(null);
@@ -76,6 +79,11 @@ export default function App() {
     setPendingNotifTarget(null);
   }, [isReady, navReady, pendingNotifTarget]);
 
+  useEffect(() => {
+    if (!isReady) return;
+    syncFromStorage();
+  }, [isReady, syncFromStorage]);
+
   if (!isReady) {
     return (
       <View
@@ -93,13 +101,23 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer
-      theme={navTheme}
-      ref={navigationRef}
-      onReady={() => setNavReady(true)}
-    >
-      <StatusBar style="light" />
-      <RootNavigator />
-    </NavigationContainer>
+    <View style={styles.root}>
+      <NavigationContainer theme={navTheme} ref={navigationRef} onReady={() => setNavReady(true)}>
+        <StatusBar style="light" />
+        <RootNavigator />
+      </NavigationContainer>
+      {isLocked ? (
+        <View style={StyleSheet.absoluteFillObject}>
+          <AppLockScreen isUnlocking={isUnlocking} unlock={unlock} />
+        </View>
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+});

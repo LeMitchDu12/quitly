@@ -22,6 +22,7 @@ import {
 } from "../storage/notificationTimes";
 import { todayLocalISODate } from "../utils/date";
 import { formatCurrencyEUR } from "../utils/format";
+import { authenticateWithBiometrics, isBiometricAvailable } from "../security/useAppLock";
 
 type EditorTarget = { kind: "check" } | { kind: "passive"; index: number } | null;
 
@@ -91,11 +92,15 @@ export default function SettingsScreen() {
   const [editorTarget, setEditorTarget] = useState<EditorTarget>(null);
   const [pendingTime, setPendingTime] = useState<NotificationTime>({ hour: 9, minute: 0 });
   const [pickerDate, setPickerDate] = useState(new Date());
+  const [biometricReady, setBiometricReady] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
       setTick((x) => x + 1);
       setNotificationPlan(readNotificationPlan());
+      isBiometricAvailable()
+        .then(setBiometricReady)
+        .catch(() => setBiometricReady(false));
     }, [])
   );
 
@@ -106,6 +111,7 @@ export default function SettingsScreen() {
   const isPremium = getBool(StorageKeys.isPremium) ?? false;
   const notificationsEnabledPref = getBool(StorageKeys.notificationsEnabled) ?? false;
   const notificationsEnabled = notificationsEnabledPref && isPremium;
+  const lockEnabled = getBool(StorageKeys.securityLockEnabled) ?? false;
   const language =
     (getString(StorageKeys.language) as "fr" | "en" | null) ??
     (i18n.language?.startsWith("fr") ? "fr" : "en");
@@ -276,6 +282,14 @@ export default function SettingsScreen() {
 
   const notifLabel = notificationsEnabled ? t("settingsEnabled") : t("settingsDisabled");
 
+  const toggleAppLock = async () => {
+    if (!biometricReady) return;
+    const ok = await authenticateWithBiometrics(t("lockPrompt"));
+    if (!ok) return;
+    setBool(StorageKeys.securityLockEnabled, !lockEnabled);
+    refresh();
+  };
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
@@ -367,6 +381,28 @@ export default function SettingsScreen() {
               <SecondaryButton title={t("unlock")} onPress={() => setPaywallOpen(true)} />
             </View>
           )}
+        </View>
+
+        <View style={styles.block}>
+          <Text style={styles.section}>{t("settingsSecurity")}</Text>
+          <View style={styles.securityRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t("securityLockTitle")}</Text>
+              <Text style={styles.hint}>{t("securityLockSubtitle")}</Text>
+            </View>
+            <Pressable
+              onPress={toggleAppLock}
+              disabled={!biometricReady}
+              style={[
+                styles.securitySwitch,
+                lockEnabled && biometricReady ? styles.securitySwitchOn : styles.securitySwitchOff,
+                !biometricReady && styles.securitySwitchDisabled,
+              ]}
+            >
+              <View style={[styles.securityThumb, lockEnabled && biometricReady ? styles.securityThumbOn : null]} />
+            </Pressable>
+          </View>
+          {!biometricReady ? <Text style={styles.hint}>{t("securityLockUnavailable")}</Text> : null}
         </View>
 
         <View style={styles.block}>
@@ -521,6 +557,41 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.divider,
+  },
+  securityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  securitySwitch: {
+    width: 54,
+    height: 32,
+    borderRadius: 999,
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  securitySwitchOn: {
+    backgroundColor: "rgba(74,222,128,0.45)",
+  },
+  securitySwitchOff: {
+    backgroundColor: theme.colors.elevated,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+  },
+  securitySwitchDisabled: {
+    opacity: 0.45,
+  },
+  securityThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: theme.colors.textPrimary,
+    transform: [{ translateX: 0 }],
+  },
+  securityThumbOn: {
+    transform: [{ translateX: 24 }],
+    backgroundColor: "#0F1115",
   },
   timeEditorOverlay: {
     position: "absolute",

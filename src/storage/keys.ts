@@ -16,6 +16,7 @@ export const StorageKeys = {
   shieldTotalCompleted: "shield_totalCompleted",
   shieldVariantMode: "shield_variantMode",
   journalEntries: "journal_entries",
+  securityLockEnabled: "security_lock_enabled",
 } as const;
 
 export type StorageKey = typeof StorageKeys[keyof typeof StorageKeys];
