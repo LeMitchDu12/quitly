@@ -164,6 +164,7 @@
   "shieldQuit": "Quit",
   "shieldTabSession": "Session",
   "shieldTabStats": "Stats",
+  "shieldPhaseLabel": "Phase",
   "shieldFreeRemaining": "{{remaining}} / {{limit}} sessions this week",
   "shieldFreeUsage": "{{used}} / {{limit}} used this week",
   "shieldFreeLimitInfo": "Free plan: up to {{limit}} Quitly Shield sessions per week.",

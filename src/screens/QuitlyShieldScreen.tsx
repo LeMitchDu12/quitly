@@ -252,7 +252,7 @@ export default function QuitlyShieldScreen() {
           <View style={styles.runningHeader}>
             <View style={styles.phaseChip}>
               <Text style={styles.phaseChipText}>
-                {t("shieldTabSession")} {phaseIndex}/3
+                {t("shieldPhaseLabel")} {phaseIndex}/3
               </Text>
             </View>
             <Pressable onPress={confirmQuit} hitSlop={10}>
