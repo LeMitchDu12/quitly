@@ -155,7 +155,7 @@
   "shieldPhase1": "Respire lentement. Tu tiens le cap.",
   "shieldPhase2": "{{days}} jours libres · {{money}} économisés",
   "shieldPhase3": "Tu es en train de gagner.",
-  "shieldDoneTitle": "Tu viens de protéger tes progrès.",
+  "shieldDoneTitle": "Félicitations, tu as tenu bon !",
   "shieldBack": "Retour",
   "shieldQuitTitle": "Arrêter la session ?",
   "shieldQuitBody": "Tu peux sortir maintenant et reprendre plus tard.",
