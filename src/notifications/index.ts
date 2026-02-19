@@ -6,6 +6,9 @@ const PASSIVE_TEMPLATES = [
   { titleKey: "notif.passive.1.title", bodyKey: "notif.passive.1.body" },
   { titleKey: "notif.passive.2.title", bodyKey: "notif.passive.2.body" },
   { titleKey: "notif.passive.3.title", bodyKey: "notif.passive.3.body" },
+  { titleKey: "notif.passive.4.title", bodyKey: "notif.passive.4.body" },
+  { titleKey: "notif.passive.5.title", bodyKey: "notif.passive.5.body" },
+  { titleKey: "notif.passive.6.title", bodyKey: "notif.passive.6.body" },
 ];
 
 // Important: comportement en foreground

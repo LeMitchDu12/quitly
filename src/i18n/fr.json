@@ -163,6 +163,18 @@
       "3": {
         "title": "Petit rappel",
         "body": "Respire, bois un verre d'eau, et continue."
+      },
+      "4": {
+        "title": "Continue ton rythme",
+        "body": "Ton progres se construit jour apres jour."
+      },
+      "5": {
+        "title": "Cap maintenu",
+        "body": "Reste concentre sur ton objectif d'aujourd'hui."
+      },
+      "6": {
+        "title": "Tu avances",
+        "body": "Chaque envie passee renforce ta confiance."
       }
     },
     "milestone": {
