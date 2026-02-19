@@ -32,7 +32,6 @@ export default function App() {
     isUnlocking,
     syncFromStorage,
     hasFaceRecognition,
-    lastUnlockError,
   } = useAppLock();
   const [isReady, setIsReady] = useState(false);
   const [navReady, setNavReady] = useState(false);
@@ -121,7 +120,6 @@ export default function App() {
             unlockBiometricFirst={unlockBiometricFirst}
             unlockWithDeviceCode={unlockWithDeviceCode}
             hasFaceRecognition={hasFaceRecognition}
-            lastUnlockError={lastUnlockError}
           />
         </View>
       ) : null}

@@ -15,8 +15,10 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSFaceIDUsageDescription": "Quitly utilise Face ID pour déverrouiller l'application."
-      }
+        "NSFaceIDUsageDescription": "Quitly utilise Face ID pour déverrouiller l'application.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.mitchdu12.quitly"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +26,11 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -37,6 +43,12 @@
           "faceIDPermission": "Quitly utilise Face ID pour déverrouiller l'application."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b8170f44-b992-4d16-8ade-06bccf24bffa"
+      }
+    },
+    "owner": "mitchdu12"
   }
 }

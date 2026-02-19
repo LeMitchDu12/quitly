@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { theme } from "../theme";
@@ -9,7 +9,6 @@ type Props = {
   unlockBiometricFirst: (onSuccessStart?: () => void) => Promise<boolean>;
   unlockWithDeviceCode: (onSuccessStart?: () => void) => Promise<boolean>;
   hasFaceRecognition: boolean;
-  lastUnlockError: string | null;
 };
 
 type Stage = "biometric" | "code";
@@ -19,7 +18,6 @@ export default function AppLockScreen({
   unlockBiometricFirst,
   unlockWithDeviceCode,
   hasFaceRecognition,
-  lastUnlockError,
 }: Props) {
   const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
@@ -120,7 +118,7 @@ export default function AppLockScreen({
       return hasFaceRecognition ? t("lockSearchingFace") : t("lockSearchingBiometric");
     }
     if (isUnlocking) return t("lockVerifying");
-    if (failed) return t("lockRetry");
+    if (failed) return "";
     return t("lockUnlock");
   }, [failed, hasFaceRecognition, isUnlocking, stage, t]);
 
@@ -140,23 +138,26 @@ export default function AppLockScreen({
       <Animated.View style={[styles.haloSuccess, { opacity: successOpacity, transform: [{ scale: successScale }] }]} />
 
       <View style={styles.center}>
+        <Image source={require("../../assets/quitly_2.png")} style={styles.logoImage} resizeMode="contain" />
         <Text style={styles.logo}>Quitly</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
 
         {!isUnlocking && !success ? (
           <View style={styles.actions}>
             <Pressable style={styles.retryButton} onPress={runBiometric}>
-              <Text style={styles.retryText}>
-                {hasFaceRecognition ? t("lockRetryFace") : t("lockRetryBiometric")}
-              </Text>
-            </Pressable>
-            <Pressable style={styles.retryButton} onPress={runCodeFallback}>
-              <Text style={styles.retryText}>{t("lockUseCode")}</Text>
+              <Text style={styles.retryText}>{t("lockRetry")}</Text>
             </Pressable>
           </View>
         ) : null}
-        {lastUnlockError ? <Text style={styles.debugError}>error: {lastUnlockError}</Text> : null}
       </View>
+
+      {!isUnlocking && !success ? (
+        <View style={styles.codeActionWrap}>
+          <Pressable style={[styles.retryButton, styles.codeButton]} onPress={runCodeFallback}>
+            <Text style={styles.retryText}>{t("lockUseCode")}</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -187,6 +188,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
+  logoImage: {
+    width: 56,
+    height: 56,
+    opacity: 0.9,
+    marginBottom: 2,
+  },
   logo: {
     color: theme.colors.textPrimary,
     fontSize: 26,
@@ -200,8 +207,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 12,
-    flexDirection: "row",
-    gap: 10,
+    alignItems: "center",
   },
   retryButton: {
     borderWidth: 1,
@@ -216,9 +222,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 12,
   },
-  debugError: {
-    marginTop: 10,
-    color: theme.colors.textTertiary,
-    fontSize: 11,
+  codeActionWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 96,
+    alignItems: "center",
+  },
+  codeButton: {
+    minWidth: 150,
+    alignItems: "center",
   },
 });
