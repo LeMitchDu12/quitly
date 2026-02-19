@@ -259,7 +259,12 @@ export default function QuitlyShieldScreen() {
               <Text style={styles.quitText}>{t("shieldQuit")}</Text>
             </Pressable>
           </View>
-          <ShieldRing progress={progress} secondsLeft={secondsLeft} />
+          <ShieldRing
+            progress={progress}
+            secondsLeft={secondsLeft}
+            phase={phaseIndex as 1 | 2 | 3}
+            beatEnabled={isPremium}
+          />
           <Animated.View
             style={[
               styles.phaseCard,
@@ -285,7 +290,7 @@ export default function QuitlyShieldScreen() {
       return (
         <View style={styles.sessionWrap}>
           <Text style={styles.doneCheck}>GO</Text>
-          <ShieldRing progress={1} secondsLeft={0} />
+          <ShieldRing progress={1} secondsLeft={0} phase={3} beatEnabled={isPremium} />
           <Text style={styles.doneTitle}>{t("shieldDoneTitle")}</Text>
           <Pressable style={styles.backButton} onPress={closeCompleted}>
             <Text style={styles.backButtonText}>{t("shieldBack")}</Text>
