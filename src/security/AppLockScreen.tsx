@@ -6,15 +6,28 @@ import { theme } from "../theme";
 
 type Props = {
   isUnlocking: boolean;
-  unlock: (onSuccessStart?: () => void) => Promise<boolean>;
+  unlockBiometricFirst: (onSuccessStart?: () => void) => Promise<boolean>;
+  unlockWithDeviceCode: (onSuccessStart?: () => void) => Promise<boolean>;
+  hasFaceRecognition: boolean;
+  lastUnlockError: string | null;
 };
 
-export default function AppLockScreen({ isUnlocking, unlock }: Props) {
+type Stage = "biometric" | "code";
+
+export default function AppLockScreen({
+  isUnlocking,
+  unlockBiometricFirst,
+  unlockWithDeviceCode,
+  hasFaceRecognition,
+  lastUnlockError,
+}: Props) {
   const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [stage, setStage] = useState<Stage>("biometric");
   const breath = useRef(new Animated.Value(0)).current;
   const successAnim = useRef(new Animated.Value(0)).current;
+  const didAutoAttemptRef = useRef(false);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -37,17 +50,36 @@ export default function AppLockScreen({ isUnlocking, unlock }: Props) {
     return () => loop.stop();
   }, [breath]);
 
-  const tryUnlock = async () => {
+  const onSuccessStart = () => {
+    setSuccess(true);
+    Animated.timing(successAnim, {
+      toValue: 1,
+      duration: 300,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const runBiometric = async () => {
+    setStage("biometric");
     setFailed(false);
-    const ok = await unlock(() => {
-      setSuccess(true);
-      Animated.timing(successAnim, {
-        toValue: 1,
-        duration: 300,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }).start();
-    });
+    const start = Date.now();
+    const ok = await unlockBiometricFirst(onSuccessStart);
+    const elapsed = Date.now() - start;
+    if (elapsed < 700) {
+      await new Promise((resolve) => setTimeout(resolve, 700 - elapsed));
+    }
+    if (!ok) {
+      setSuccess(false);
+      successAnim.setValue(0);
+      setFailed(true);
+    }
+  };
+
+  const runCodeFallback = async () => {
+    setStage("code");
+    setFailed(false);
+    const ok = await unlockWithDeviceCode(onSuccessStart);
     if (!ok) {
       setSuccess(false);
       successAnim.setValue(0);
@@ -56,7 +88,9 @@ export default function AppLockScreen({ isUnlocking, unlock }: Props) {
   };
 
   useEffect(() => {
-    void tryUnlock();
+    if (didAutoAttemptRef.current) return;
+    didAutoAttemptRef.current = true;
+    void runBiometric();
     // run once on lock appearance
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -82,10 +116,13 @@ export default function AppLockScreen({ isUnlocking, unlock }: Props) {
   });
 
   const subtitle = useMemo(() => {
+    if (isUnlocking && stage === "biometric") {
+      return hasFaceRecognition ? t("lockSearchingFace") : t("lockSearchingBiometric");
+    }
     if (isUnlocking) return t("lockVerifying");
     if (failed) return t("lockRetry");
     return t("lockUnlock");
-  }, [failed, isUnlocking, t]);
+  }, [failed, hasFaceRecognition, isUnlocking, stage, t]);
 
   return (
     <View style={styles.root}>
@@ -106,11 +143,19 @@ export default function AppLockScreen({ isUnlocking, unlock }: Props) {
         <Text style={styles.logo}>Quitly</Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
 
-        {!isUnlocking && !success && (
-          <Pressable style={styles.retryButton} onPress={tryUnlock}>
-            <Text style={styles.retryText}>{t("lockUnlock")}</Text>
-          </Pressable>
-        )}
+        {!isUnlocking && !success ? (
+          <View style={styles.actions}>
+            <Pressable style={styles.retryButton} onPress={runBiometric}>
+              <Text style={styles.retryText}>
+                {hasFaceRecognition ? t("lockRetryFace") : t("lockRetryBiometric")}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.retryButton} onPress={runCodeFallback}>
+              <Text style={styles.retryText}>{t("lockUseCode")}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {lastUnlockError ? <Text style={styles.debugError}>error: {lastUnlockError}</Text> : null}
       </View>
     </View>
   );
@@ -153,18 +198,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  actions: {
+    marginTop: 12,
+    flexDirection: "row",
+    gap: 10,
+  },
   retryButton: {
-    marginTop: 10,
     borderWidth: 1,
     borderColor: theme.colors.outline,
     borderRadius: 999,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: "transparent",
   },
   retryText: {
     color: theme.colors.textPrimary,
     fontWeight: "700",
-    fontSize: 13,
+    fontSize: 12,
+  },
+  debugError: {
+    marginTop: 10,
+    color: theme.colors.textTertiary,
+    fontSize: 11,
   },
 });

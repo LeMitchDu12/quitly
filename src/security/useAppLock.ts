@@ -17,8 +17,17 @@ export async function isBiometricAvailable(): Promise<boolean> {
 export async function authenticateWithBiometrics(promptMessage: string): Promise<boolean> {
   const result = await LocalAuthentication.authenticateAsync({
     promptMessage,
-    fallbackLabel: Platform.OS === "ios" ? "Utiliser le code" : undefined,
+    fallbackLabel: Platform.OS === "ios" ? "Use Passcode" : undefined,
     disableDeviceFallback: false,
+    cancelLabel: undefined,
+  });
+  return !!result.success;
+}
+
+export async function authenticateBiometricOnly(promptMessage: string): Promise<boolean> {
+  const result = await LocalAuthentication.authenticateAsync({
+    promptMessage,
+    disableDeviceFallback: true,
     cancelLabel: undefined,
   });
   return !!result.success;
@@ -28,13 +37,19 @@ export function useAppLock() {
   const [lockEnabled, setLockEnabledState] = useState<boolean>(getBool(StorageKeys.securityLockEnabled) ?? false);
   const [isLocked, setIsLocked] = useState<boolean>(lockEnabled);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [lastUnlockError, setLastUnlockError] = useState<string | null>(null);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [hasFaceRecognition, setHasFaceRecognition] = useState(false);
   const backgroundAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     isBiometricAvailable()
       .then(setBiometricAvailable)
       .catch(() => setBiometricAvailable(false));
+
+    LocalAuthentication.supportedAuthenticationTypesAsync()
+      .then((types) => setHasFaceRecognition(types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)))
+      .catch(() => setHasFaceRecognition(false));
   }, []);
 
   useEffect(() => {
@@ -66,9 +81,7 @@ export function useAppLock() {
   const setLockEnabled = useCallback((enabled: boolean) => {
     setBool(StorageKeys.securityLockEnabled, enabled);
     setLockEnabledState(enabled);
-    if (!enabled) {
-      setIsLocked(false);
-    }
+    if (!enabled) setIsLocked(false);
   }, []);
 
   const syncFromStorage = useCallback(() => {
@@ -83,7 +96,13 @@ export function useAppLock() {
     setIsLocked(true);
   }, []);
 
-  const unlock = useCallback(
+  const finalizeUnlock = useCallback(async (onSuccessStart?: () => void) => {
+    onSuccessStart?.();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    setIsLocked(false);
+  }, []);
+
+  const unlockBiometricFirst = useCallback(
     async (onSuccessStart?: () => void) => {
       if (!lockEnabled) {
         setIsLocked(false);
@@ -92,18 +111,59 @@ export function useAppLock() {
 
       setIsUnlocking(true);
       try {
-        const ok = await authenticateWithBiometrics("Déverrouiller Quitly");
-        if (!ok) return false;
-        onSuccessStart?.();
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        setIsLocked(false);
+        setLastUnlockError(null);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: "Unlock Quitly",
+          disableDeviceFallback: true,
+          cancelLabel: undefined,
+        });
+        const ok = !!result.success;
+
+        if (!ok) {
+          setLastUnlockError(result.error ?? "biometric_failed");
+          return false;
+        }
+        await finalizeUnlock(onSuccessStart);
         return true;
       } finally {
         setIsUnlocking(false);
       }
     },
-    [lockEnabled]
+    [lockEnabled, finalizeUnlock]
   );
+
+  const unlockWithDeviceCode = useCallback(
+    async (onSuccessStart?: () => void) => {
+      if (!lockEnabled) {
+        setIsLocked(false);
+        return true;
+      }
+
+      setIsUnlocking(true);
+      try {
+        setLastUnlockError(null);
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: "Unlock Quitly",
+          fallbackLabel: Platform.OS === "ios" ? "Use Passcode" : undefined,
+          disableDeviceFallback: false,
+          cancelLabel: undefined,
+        });
+        const ok = !!result.success;
+        if (!ok) {
+          setLastUnlockError(result.error ?? "code_fallback_failed");
+          return false;
+        }
+        await finalizeUnlock(onSuccessStart);
+        return true;
+      } finally {
+        setIsUnlocking(false);
+      }
+    },
+    [lockEnabled, finalizeUnlock]
+  );
+
+  const unlock = unlockBiometricFirst;
 
   return useMemo(
     () => ({
@@ -111,11 +171,28 @@ export function useAppLock() {
       isUnlocking,
       lock,
       unlock,
+      unlockBiometricFirst,
+      unlockWithDeviceCode,
+      lastUnlockError,
       lockEnabled,
       setLockEnabled,
       biometricAvailable,
+      hasFaceRecognition,
       syncFromStorage,
     }),
-    [isLocked, isUnlocking, lock, unlock, lockEnabled, setLockEnabled, biometricAvailable, syncFromStorage]
+    [
+      isLocked,
+      isUnlocking,
+      lock,
+      unlock,
+      unlockBiometricFirst,
+      unlockWithDeviceCode,
+      lastUnlockError,
+      lockEnabled,
+      setLockEnabled,
+      biometricAvailable,
+      hasFaceRecognition,
+      syncFromStorage,
+    ]
   );
 }

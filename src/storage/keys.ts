@@ -17,6 +17,7 @@ export const StorageKeys = {
   shieldVariantMode: "shield_variantMode",
   journalEntries: "journal_entries",
   securityLockEnabled: "security_lock_enabled",
+  securityBiometricPreferred: "security_biometric_preferred",
 } as const;
 
 export type StorageKey = typeof StorageKeys[keyof typeof StorageKeys];

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView } from "react-native";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import * as LocalAuthentication from "expo-local-authentication";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -93,6 +94,12 @@ export default function SettingsScreen() {
   const [pendingTime, setPendingTime] = useState<NotificationTime>({ hour: 9, minute: 0 });
   const [pickerDate, setPickerDate] = useState(new Date());
   const [biometricReady, setBiometricReady] = useState(false);
+  const [biometricHardware, setBiometricHardware] = useState(false);
+  const [biometricEnrolled, setBiometricEnrolled] = useState(false);
+  const [supportsFace, setSupportsFace] = useState(false);
+  const [supportsFingerprint, setSupportsFingerprint] = useState(false);
+  const [supportsIris, setSupportsIris] = useState(false);
+  const [biometricDiagError, setBiometricDiagError] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -101,6 +108,28 @@ export default function SettingsScreen() {
       isBiometricAvailable()
         .then(setBiometricReady)
         .catch(() => setBiometricReady(false));
+
+      Promise.all([
+        LocalAuthentication.hasHardwareAsync(),
+        LocalAuthentication.isEnrolledAsync(),
+        LocalAuthentication.supportedAuthenticationTypesAsync(),
+      ])
+        .then(([hardware, enrolled, types]) => {
+          setBiometricHardware(hardware);
+          setBiometricEnrolled(enrolled);
+          setSupportsFace(types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION));
+          setSupportsFingerprint(types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT));
+          setSupportsIris(types.includes(LocalAuthentication.AuthenticationType.IRIS));
+          setBiometricDiagError(false);
+        })
+        .catch(() => {
+          setBiometricDiagError(true);
+          setBiometricHardware(false);
+          setBiometricEnrolled(false);
+          setSupportsFace(false);
+          setSupportsFingerprint(false);
+          setSupportsIris(false);
+        });
     }, [])
   );
 
@@ -112,6 +141,7 @@ export default function SettingsScreen() {
   const notificationsEnabledPref = getBool(StorageKeys.notificationsEnabled) ?? false;
   const notificationsEnabled = notificationsEnabledPref && isPremium;
   const lockEnabled = getBool(StorageKeys.securityLockEnabled) ?? false;
+  const biometricPreferred = getBool(StorageKeys.securityBiometricPreferred) ?? true;
   const language =
     (getString(StorageKeys.language) as "fr" | "en" | null) ??
     (i18n.language?.startsWith("fr") ? "fr" : "en");
@@ -286,9 +316,26 @@ export default function SettingsScreen() {
     if (!biometricReady) return;
     const ok = await authenticateWithBiometrics(t("lockPrompt"));
     if (!ok) return;
-    setBool(StorageKeys.securityLockEnabled, !lockEnabled);
+    const next = !lockEnabled;
+    setBool(StorageKeys.securityLockEnabled, next);
+    if (next) {
+      setBool(StorageKeys.securityBiometricPreferred, true);
+    }
     refresh();
   };
+
+  const toggleBiometricPreferred = () => {
+    setBool(StorageKeys.securityBiometricPreferred, !biometricPreferred);
+    refresh();
+  };
+
+  const supportedTypesLabel = (() => {
+    const parts: string[] = [];
+    if (supportsFace) parts.push(t("securityDiagTypeFace"));
+    if (supportsFingerprint) parts.push(t("securityDiagTypeFingerprint"));
+    if (supportsIris) parts.push(t("securityDiagTypeIris"));
+    return parts.length > 0 ? parts.join(", ") : t("securityDiagTypeNone");
+  })();
 
   return (
     <Screen>
@@ -403,6 +450,40 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
           {!biometricReady ? <Text style={styles.hint}>{t("securityLockUnavailable")}</Text> : null}
+          {biometricReady && lockEnabled ? (
+            <View style={[styles.securityRow, { marginTop: 14 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>{t("securityBiometricPreferredTitle")}</Text>
+                <Text style={styles.hint}>{t("securityBiometricPreferredSubtitle")}</Text>
+              </View>
+              <Pressable
+                onPress={toggleBiometricPreferred}
+                style={[
+                  styles.securitySwitch,
+                  biometricPreferred ? styles.securitySwitchOn : styles.securitySwitchOff,
+                ]}
+              >
+                <View style={[styles.securityThumb, biometricPreferred ? styles.securityThumbOn : null]} />
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={styles.securityDiagCard}>
+            <Text style={styles.groupTitle}>{t("securityDiagTitle")}</Text>
+            <View style={styles.diagRow}>
+              <Text style={styles.rowLabel}>{t("securityDiagHardware")}</Text>
+              <Text style={styles.rowValue}>{biometricHardware ? t("settingsEnabled") : t("settingsDisabled")}</Text>
+            </View>
+            <View style={styles.diagRow}>
+              <Text style={styles.rowLabel}>{t("securityDiagEnrolled")}</Text>
+              <Text style={styles.rowValue}>{biometricEnrolled ? t("settingsEnabled") : t("settingsDisabled")}</Text>
+            </View>
+            <View style={styles.diagRow}>
+              <Text style={styles.rowLabel}>{t("securityDiagTypes")}</Text>
+              <Text style={styles.rowValue}>{supportedTypesLabel}</Text>
+            </View>
+            {biometricDiagError ? <Text style={styles.hint}>{t("securityDiagError")}</Text> : null}
+          </View>
         </View>
 
         <View style={styles.block}>
@@ -557,6 +638,21 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.divider,
+  },
+  securityDiagCard: {
+    marginTop: 14,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.elevated,
+    padding: 12,
+  },
+  diagRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+    gap: 10,
   },
   securityRow: {
     flexDirection: "row",

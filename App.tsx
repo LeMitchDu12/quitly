@@ -25,7 +25,15 @@ const navTheme = {
 };
 
 export default function App() {
-  const { isLocked, unlock, isUnlocking, syncFromStorage } = useAppLock();
+  const {
+    isLocked,
+    unlockBiometricFirst,
+    unlockWithDeviceCode,
+    isUnlocking,
+    syncFromStorage,
+    hasFaceRecognition,
+    lastUnlockError,
+  } = useAppLock();
   const [isReady, setIsReady] = useState(false);
   const [navReady, setNavReady] = useState(false);
   const [pendingNotifTarget, setPendingNotifTarget] = useState<string | null>(null);
@@ -108,7 +116,13 @@ export default function App() {
       </NavigationContainer>
       {isLocked ? (
         <View style={StyleSheet.absoluteFillObject}>
-          <AppLockScreen isUnlocking={isUnlocking} unlock={unlock} />
+          <AppLockScreen
+            isUnlocking={isUnlocking}
+            unlockBiometricFirst={unlockBiometricFirst}
+            unlockWithDeviceCode={unlockWithDeviceCode}
+            hasFaceRecognition={hasFaceRecognition}
+            lastUnlockError={lastUnlockError}
+          />
         </View>
       ) : null}
     </View>
