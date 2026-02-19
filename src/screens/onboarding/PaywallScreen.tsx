@@ -10,7 +10,7 @@ import { StorageKeys } from "../../storage/keys";
 import { getBool, setBool } from "../../storage/mmkv";
 import { setOnboardingComplete } from "../../storage/profile";
 import { requestNotifPermissions, scheduleMotivationReminders } from "../../notifications";
-import { readNotificationTimes } from "../../storage/notificationTimes";
+import { readNotificationPlan } from "../../storage/notificationTimes";
 import OnboardingHeader from "../../components/OnboardingHeader";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Paywall">;
@@ -69,7 +69,7 @@ export default function PaywallScreen({ navigation }: Props) {
     try {
       const ok = await requestNotifPermissions();
       if (ok) {
-        await scheduleMotivationReminders(readNotificationTimes());
+        await scheduleMotivationReminders(readNotificationPlan());
       }
     } catch {
       // Do not block onboarding if notifications fail.

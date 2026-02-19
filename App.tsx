@@ -24,6 +24,8 @@ const navTheme = {
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
+  const [navReady, setNavReady] = useState(false);
+  const [pendingNotifTarget, setPendingNotifTarget] = useState<string | null>(null);
 
   useEffect(() => {
     hydrateStorage()
@@ -36,29 +38,43 @@ export default function App() {
   useEffect(() => {
     if (!isReady) return;
 
-    const applyNotificationTarget = (target?: unknown) => {
-      if (target === "dailyCheckin") {
+    const applyNotificationTarget = (data?: Record<string, unknown>) => {
+      const kind = data?.reminderKind;
+      const target = data?.target;
+
+      // Passive reminders must never trigger in-app navigation.
+      if (kind === "passive") return;
+
+      if (kind === "check" && target === "dailyCheckin") {
         setString(StorageKeys.pendingAction, "dailyCheckin");
-        goToHomeTab();
+        setPendingNotifTarget("dailyCheckin");
       }
     };
 
     Notifications.getLastNotificationResponseAsync()
       .then((response) => {
-        const target = response?.notification.request.content.data?.target;
-        applyNotificationTarget(target);
+        const data = response?.notification.request.content.data as Record<string, unknown> | undefined;
+        applyNotificationTarget(data);
       })
       .catch(() => {
         // ignore
       });
 
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const target = response.notification.request.content.data?.target;
-      applyNotificationTarget(target);
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      applyNotificationTarget(data);
     });
 
     return () => sub.remove();
   }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || !navReady) return;
+    if (pendingNotifTarget !== "dailyCheckin") return;
+
+    goToHomeTab();
+    setPendingNotifTarget(null);
+  }, [isReady, navReady, pendingNotifTarget]);
 
   if (!isReady) {
     return (
@@ -77,7 +93,11 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer theme={navTheme} ref={navigationRef}>
+    <NavigationContainer
+      theme={navTheme}
+      ref={navigationRef}
+      onReady={() => setNavReady(true)}
+    >
       <StatusBar style="light" />
       <RootNavigator />
     </NavigationContainer>

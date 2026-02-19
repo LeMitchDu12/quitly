@@ -89,6 +89,13 @@
   "settingsDailyMotivation": "Motivation quotidienne",
   "settingsNotifScheduledAt": "Planifie chaque jour a 09:00.",
   "notificationsPremiumHint": "La gestion des rappels est reservee au Premium.",
+  "notificationsCheckTitle": "Check quotidien (avec reponse)",
+  "notificationsPassiveTitle": "Rappels passifs (aleatoires)",
+  "notificationsAddCheck": "Ajouter le check quotidien",
+  "notificationsAddPassive": "Ajouter un rappel passif",
+  "notificationsNoCheckHint": "Aucun check quotidien configure.",
+  "notificationsNoPassiveHint": "Aucun rappel passif configure.",
+  "notificationsMaxPassive": "Maximum 2 rappels passifs autorises.",
   "notificationsAddReminder": "Ajouter un rappel",
   "notificationsMaxReminders": "Maximum 3 rappels autorises.",
   "notificationsScheduledAtTimes": "Planifié pour {{times}}.",
@@ -143,6 +150,20 @@
     "daily": {
       "title": "Bilan quotidien",
       "body": "As-tu rechute aujourd'hui ? Touche pour repondre."
+    },
+    "passive": {
+      "1": {
+        "title": "Chaque jour compte",
+        "body": "Un pas de plus aujourd'hui. Continue."
+      },
+      "2": {
+        "title": "Reste sur ta lancee",
+        "body": "Tu construis une vraie serie. Garde le cap."
+      },
+      "3": {
+        "title": "Petit rappel",
+        "body": "Respire, bois un verre d'eau, et continue."
+      }
     },
     "milestone": {
       "24h": {

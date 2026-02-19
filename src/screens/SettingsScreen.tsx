@@ -1,9 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView } from "react-native";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useTranslation } from "react-i18next";
-import { useNavigation } from "@react-navigation/native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Screen from "../components/Screen";
 import { theme } from "../theme";
@@ -15,9 +14,16 @@ import PaywallModal from "../components/PaywallModal";
 import PrimaryButton from "../components/PrimaryButton";
 import SecondaryButton from "../components/SecondaryButton";
 import { requestNotifPermissions, scheduleMotivationReminders, cancelAllNotifications } from "../notifications";
-import { NotificationTime, readNotificationTimes, saveNotificationTimes } from "../storage/notificationTimes";
+import {
+  NotificationPlan,
+  NotificationTime,
+  readNotificationPlan,
+  saveNotificationPlan,
+} from "../storage/notificationTimes";
 import { todayLocalISODate } from "../utils/date";
 import { formatCurrencyEUR } from "../utils/format";
+
+type EditorTarget = { kind: "check" } | { kind: "passive"; index: number } | null;
 
 function Chip({
   title,
@@ -71,20 +77,25 @@ function formatReminderTime(time: NotificationTime) {
   return `${hh}:${mm}`;
 }
 
+function sortTimes(times: NotificationTime[]) {
+  return [...times].sort((a, b) => a.hour - b.hour || a.minute - b.minute);
+}
+
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [, setTick] = useState(0);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [notificationTimes, setNotificationTimes] = useState<NotificationTime[]>(() => readNotificationTimes());
+  const [notificationPlan, setNotificationPlan] = useState<NotificationPlan>(() => readNotificationPlan());
   const [timeEditorVisible, setTimeEditorVisible] = useState(false);
-  const [editingTime, setEditingTime] = useState<number>(0);
+  const [editorTarget, setEditorTarget] = useState<EditorTarget>(null);
   const [pendingTime, setPendingTime] = useState<NotificationTime>({ hour: 9, minute: 0 });
   const [pickerDate, setPickerDate] = useState(new Date());
 
   useFocusEffect(
     React.useCallback(() => {
       setTick((x) => x + 1);
+      setNotificationPlan(readNotificationPlan());
     }, [])
   );
 
@@ -100,13 +111,23 @@ export default function SettingsScreen() {
 
   const refresh = () => setTick((x) => x + 1);
 
-  const rescheduleIfActive = async (times: NotificationTime[]) => {
+  const rescheduleIfActive = async (plan: NotificationPlan) => {
     if (!notificationsEnabled || !isPremium) return;
     try {
-      await scheduleMotivationReminders(times);
+      await scheduleMotivationReminders(plan);
     } catch {
-      // ignore silently
+      // Ignore to keep settings responsive.
     }
+  };
+
+  const persistNotificationPlan = async (plan: NotificationPlan) => {
+    const clean: NotificationPlan = {
+      check: plan.check,
+      passive: sortTimes(plan.passive).slice(0, 2),
+    };
+    setNotificationPlan(clean);
+    saveNotificationPlan(clean);
+    await rescheduleIfActive(clean);
   };
 
   const setLang = async (lng: "fr" | "en") => {
@@ -114,62 +135,87 @@ export default function SettingsScreen() {
     setString(StorageKeys.language, lng);
     const enabled = getBool(StorageKeys.notificationsEnabled) ?? true;
     if (enabled && isPremium) {
-      await scheduleMotivationReminders(readNotificationTimes());
+      await scheduleMotivationReminders(readNotificationPlan());
     }
     refresh();
   };
 
-  const openTimePicker = (index: number) => {
-    const target = notificationTimes[index] ?? { hour: 9, minute: 0 };
+  const openTimePicker = (target: EditorTarget, time: NotificationTime) => {
+    if (!target) return;
     const readyDate = new Date();
-    readyDate.setHours(target.hour, target.minute, 0, 0);
+    readyDate.setHours(time.hour, time.minute, 0, 0);
     setPickerDate(readyDate);
-    setEditingTime(index);
-    setPendingTime(target);
+    setPendingTime(time);
+    setEditorTarget(target);
     setTimeEditorVisible(true);
   };
 
-  const handleTimeChange = async (_: DateTimePickerEvent, selected?: Date) => {
+  const addCheckReminder = async () => {
+    if (notificationPlan.check) {
+      openTimePicker({ kind: "check" }, notificationPlan.check);
+      return;
+    }
+    const next = { ...notificationPlan, check: { hour: 9, minute: 0 } };
+    await persistNotificationPlan(next);
+    openTimePicker({ kind: "check" }, next.check!);
+  };
+
+  const removeCheckReminder = async () => {
+    const next = { ...notificationPlan, check: null };
+    await persistNotificationPlan(next);
+    setTimeEditorVisible(false);
+  };
+
+  const addPassiveReminder = async () => {
+    if (notificationPlan.passive.length >= 2) return;
+    const updatedPassive = [...notificationPlan.passive, { hour: 18, minute: 0 }];
+    const next = { ...notificationPlan, passive: sortTimes(updatedPassive) };
+    await persistNotificationPlan(next);
+    const index = next.passive.length - 1;
+    openTimePicker({ kind: "passive", index }, next.passive[index]!);
+  };
+
+  const removePassiveReminder = async (index: number) => {
+    const updatedPassive = notificationPlan.passive.filter((_, idx) => idx !== index);
+    const next = { ...notificationPlan, passive: updatedPassive };
+    await persistNotificationPlan(next);
+    setTimeEditorVisible(false);
+  };
+
+  const handleTimeChange = (_: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
     setPickerDate(selected);
     setPendingTime({ hour: selected.getHours(), minute: selected.getMinutes() });
   };
 
-  const persistNotificationTimes = async (times: NotificationTime[]) => {
-    const sorted = [...times].sort((a, b) => (a.hour - b.hour) || (a.minute - b.minute));
-    setNotificationTimes(sorted);
-    saveNotificationTimes(sorted);
-    setEditingTime((prev) => (sorted.length === 0 ? 0 : Math.min(prev, sorted.length - 1)));
-    await rescheduleIfActive(sorted);
-  };
-
-  const addReminderTime = async () => {
-    if (notificationTimes.length >= 3) return;
-    const newTimes = [...notificationTimes, { hour: 9, minute: 0 }];
-    await persistNotificationTimes(newTimes);
-    setEditingTime(newTimes.length - 1);
-    setPendingTime(newTimes[newTimes.length - 1]);
-    setTimeEditorVisible(true);
-  };
-
-  const removeReminderTime = async (index: number) => {
-    const updated = notificationTimes.filter((_, idx) => idx !== index);
-    await persistNotificationTimes(updated);
-    if (updated.length === 0) {
-      setTimeEditorVisible(false);
-    }
-  };
-
   const confirmTimeChange = async () => {
-    const targetIndex = editingTime >= notificationTimes.length ? 0 : editingTime;
-    const updated = [...notificationTimes];
-    updated[targetIndex] = pendingTime;
+    if (!editorTarget) {
+      setTimeEditorVisible(false);
+      return;
+    }
+
+    if (editorTarget.kind === "check") {
+      const next = { ...notificationPlan, check: pendingTime };
+      setTimeEditorVisible(false);
+      await persistNotificationPlan(next);
+      return;
+    }
+
+    const idx = editorTarget.index;
+    if (idx < 0 || idx >= notificationPlan.passive.length) {
+      setTimeEditorVisible(false);
+      return;
+    }
+    const updatedPassive = [...notificationPlan.passive];
+    updatedPassive[idx] = pendingTime;
+    const next = { ...notificationPlan, passive: sortTimes(updatedPassive) };
     setTimeEditorVisible(false);
-    await persistNotificationTimes(updated);
+    await persistNotificationPlan(next);
   };
 
   const cancelTimeChange = () => {
     setTimeEditorVisible(false);
+    setEditorTarget(null);
   };
 
   const toggleNotifications = async () => {
@@ -191,7 +237,7 @@ export default function SettingsScreen() {
           Alert.alert(t("settingsNotifPermissionTitle"), t("settingsNotifPermissionBody"));
           return;
         }
-        await scheduleMotivationReminders(notificationTimes);
+        await scheduleMotivationReminders(notificationPlan);
       } else {
         await cancelAllNotifications();
       }
@@ -255,61 +301,71 @@ export default function SettingsScreen() {
               tone={notificationsEnabled ? "danger" : "primary"}
             />
           </View>
+
           {notificationsEnabled && isPremium && (
             <>
-              {notificationTimes.length > 0 ? (
-                <>
-                  <Text style={styles.hint}>
-                    {t("notificationsScheduledAtTimes", {
-                      times: notificationTimes.map(formatReminderTime).join(" • "),
-                    })}
-                  </Text>
+              <View style={styles.notificationGroup}>
+                <Text style={styles.groupTitle}>{t("notificationsCheckTitle")}</Text>
+                {notificationPlan.check ? (
+                  <View style={styles.reminderRow}>
+                    <Pressable
+                      style={styles.reminderRowLabel}
+                      onPress={() => openTimePicker({ kind: "check" }, notificationPlan.check!)}
+                    >
+                      <Text style={styles.reminderRowText}>{formatReminderTime(notificationPlan.check)}</Text>
+                    </Pressable>
+                    <Pressable style={styles.timeRemoveIcon} onPress={removeCheckReminder}>
+                      <Text style={styles.timeRemoveText}>x</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Text style={styles.hint}>{t("notificationsNoCheckHint")}</Text>
+                )}
+                {!notificationPlan.check && (
+                  <View style={styles.addReminderWrapper}>
+                    <SecondaryButton title={t("notificationsAddCheck")} onPress={addCheckReminder} />
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.notificationGroup}>
+                <Text style={styles.groupTitle}>{t("notificationsPassiveTitle")}</Text>
+                {notificationPlan.passive.length > 0 ? (
                   <View style={styles.notificationList}>
-                    {notificationTimes.map((time, index) => (
+                    {notificationPlan.passive.map((time, index) => (
                       <View key={`${formatReminderTime(time)}-${index}`} style={styles.reminderRow}>
                         <Pressable
-                          style={[
-                            styles.reminderRowLabel,
-                            editingTime === index && styles.reminderRowLabelActive,
-                          ]}
-                          onPress={() => openTimePicker(index)}
+                          style={styles.reminderRowLabel}
+                          onPress={() => openTimePicker({ kind: "passive", index }, time)}
                         >
-                          <Text
-                            style={[
-                              styles.reminderRowText,
-                              editingTime === index && styles.reminderRowTextActive,
-                            ]}
-                          >
-                            {formatReminderTime(time)}
-                          </Text>
+                          <Text style={styles.reminderRowText}>{formatReminderTime(time)}</Text>
                         </Pressable>
-                        <Pressable style={styles.timeRemoveIcon} onPress={() => removeReminderTime(index)}>
-                          <Text style={styles.timeRemoveText}>×</Text>
+                        <Pressable style={styles.timeRemoveIcon} onPress={() => removePassiveReminder(index)}>
+                          <Text style={styles.timeRemoveText}>x</Text>
                         </Pressable>
                       </View>
                     ))}
                   </View>
-                </>
-              ) : (
-                <Text style={styles.hint}>{t("notificationsNoRemindersHint")}</Text>
-              )}
-              <View style={styles.addReminderWrapper}>
-                <SecondaryButton title={t("notificationsAddReminder")} onPress={addReminderTime} />
+                ) : (
+                  <Text style={styles.hint}>{t("notificationsNoPassiveHint")}</Text>
+                )}
+                <View style={styles.addReminderWrapper}>
+                  <SecondaryButton title={t("notificationsAddPassive")} onPress={addPassiveReminder} />
+                </View>
+                {notificationPlan.passive.length >= 2 && (
+                  <Text style={styles.hint}>{t("notificationsMaxPassive")}</Text>
+                )}
               </View>
-              {notificationTimes.length >= 3 && (
-                <Text style={styles.hint}>{t("notificationsMaxReminders")}</Text>
-              )}
             </>
-          )} 
-          
-          { !isPremium && (
+          )}
+
+          {!isPremium && (
             <View style={styles.notificationLocked}>
               <Text style={styles.hint}>{t("notificationsPremiumHint")}</Text>
               <View style={{ height: theme.spacing.sm }} />
               <SecondaryButton title={t("unlock")} onPress={() => setPaywallOpen(true)} />
             </View>
           )}
-
         </View>
 
         <View style={styles.block}>
@@ -340,6 +396,7 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
       {timeEditorVisible && (
         <View style={styles.timeEditorOverlay}>
           <View style={styles.timeEditor}>
@@ -366,10 +423,11 @@ export default function SettingsScreen() {
           </View>
         </View>
       )}
-    <PaywallModal
-      visible={paywallOpen}
-      onClose={() => setPaywallOpen(false)}
-      onUnlock={unlockPremium}
+
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        onUnlock={unlockPremium}
         savedAmountLabel={formatCurrencyEUR(0)}
       />
     </Screen>
@@ -396,6 +454,11 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: 8,
     fontSize: 16,
+  },
+  groupTitle: {
+    color: theme.colors.textPrimary,
+    fontWeight: "800",
+    marginTop: theme.spacing.md,
   },
   hint: {
     color: theme.colors.textTertiary,
@@ -426,46 +489,8 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   chipText: { fontWeight: "900", fontSize: 13 },
-  notificationList: { marginTop: theme.spacing.sm },
-  notificationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 6,
-  },
-  timeLabel: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.elevated,
-  },
-  notificationValue: { color: theme.colors.textPrimary, fontWeight: "700" },
-  timeRemove: { marginLeft: 10, padding: 6 },
-  timeRemoveDisabled: { opacity: 0.4 },
-  timeRemoveText: { color: theme.colors.danger, fontWeight: "700", fontSize: 18 },
-  timeRemoveIcon: { marginLeft: 8, padding: 4 },
-  notificationLocked: {
-    marginTop: theme.spacing.sm,
-    padding: 12,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-  },
-  timePickerCard: {
-    marginTop: theme.spacing.sm,
-    padding: 12,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    backgroundColor: theme.colors.elevated,
-  },
-  timePickerLabel: {
-    color: theme.colors.textSecondary,
-    marginBottom: 6,
-    fontSize: 12,
-  },
+  notificationGroup: { marginTop: theme.spacing.sm },
+  notificationList: { marginTop: theme.spacing.xs },
   reminderRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -479,16 +504,22 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     backgroundColor: theme.colors.elevated,
   },
-  reminderRowLabelActive: {
-    borderColor: theme.colors.primary,
-    borderWidth: 1,
-  },
   reminderRowText: {
     color: theme.colors.textPrimary,
     fontWeight: "700",
   },
-  reminderRowTextActive: {
-    color: theme.colors.primary,
+  timeRemoveIcon: { marginLeft: 8, padding: 4 },
+  timeRemoveText: { color: theme.colors.danger, fontWeight: "700", fontSize: 18 },
+  addReminderWrapper: {
+    marginTop: theme.spacing.sm,
+  },
+  notificationLocked: {
+    marginTop: theme.spacing.sm,
+    padding: 12,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
   },
   timeEditorOverlay: {
     position: "absolute",
@@ -511,6 +542,17 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: theme.spacing.sm,
   },
+  editorPickerWrap: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    paddingVertical: theme.spacing.sm,
+  },
+  editorPicker: {
+    alignSelf: "center",
+    paddingHorizontal: theme.spacing.sm,
+  },
   editorActions: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -519,20 +561,5 @@ const styles = StyleSheet.create({
   },
   editorButtonWrapper: {
     flex: 1,
-  },
-  editorPickerWrap: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    paddingVertical: theme.spacing.sm,    
-  },
-  editorPicker: {    
-    alignSelf: "center",
-    paddingRight: theme.spacing.sm,    
-    paddingLeft: theme.spacing.sm,    
-  },
-  addReminderWrapper: {
-    marginTop: theme.spacing.sm,
   },
 });

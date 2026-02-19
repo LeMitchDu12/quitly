@@ -89,6 +89,13 @@
   "settingsDailyMotivation": "Daily motivation",
   "settingsNotifScheduledAt": "Scheduled daily at 09:00.",
   "notificationsPremiumHint": "Managing reminders is reserved for Premium.",
+  "notificationsCheckTitle": "Daily check (requires response)",
+  "notificationsPassiveTitle": "Passive reminders (random)",
+  "notificationsAddCheck": "Add daily check",
+  "notificationsAddPassive": "Add passive reminder",
+  "notificationsNoCheckHint": "No daily check configured.",
+  "notificationsNoPassiveHint": "No passive reminders configured.",
+  "notificationsMaxPassive": "Maximum 2 passive reminders allowed.",
   "notificationsAddReminder": "Add reminder",
   "notificationsMaxReminders": "Maximum 3 reminders allowed.",
   "notificationsScheduledAtTimes": "Planned for {{times}}.",
@@ -143,6 +150,20 @@
     "daily": {
       "title": "Daily check-in",
       "body": "Did you relapse today? Tap to answer."
+    },
+    "passive": {
+      "1": {
+        "title": "Every day counts",
+        "body": "One more clean day. Keep going."
+      },
+      "2": {
+        "title": "Stay on track",
+        "body": "Your streak matters. Keep your momentum."
+      },
+      "3": {
+        "title": "Quick reminder",
+        "body": "Pause, breathe, drink water, then continue."
+      }
     },
     "milestone": {
       "24h": {

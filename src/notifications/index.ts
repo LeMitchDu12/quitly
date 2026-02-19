@@ -1,7 +1,12 @@
 import * as Notifications from "expo-notifications";
 import i18n from "../i18n";
+import type { NotificationPlan, NotificationTime } from "../storage/notificationTimes";
 
-export type NotificationTime = { hour: number; minute: number };
+const PASSIVE_TEMPLATES = [
+  { titleKey: "notif.passive.1.title", bodyKey: "notif.passive.1.body" },
+  { titleKey: "notif.passive.2.title", bodyKey: "notif.passive.2.body" },
+  { titleKey: "notif.passive.3.title", bodyKey: "notif.passive.3.body" },
+];
 
 // Important: comportement en foreground
 Notifications.setNotificationHandler({
@@ -34,17 +39,53 @@ export async function requestNotifPermissions(): Promise<boolean> {
   return !!req.granted;
 }
 
-export async function scheduleMotivationReminders(times: NotificationTime[]): Promise<void> {
-  await Notifications.cancelAllScheduledNotificationsAsync();
-  if (times.length === 0) return;
+function pickRandomPassiveTemplate() {
+  const index = Math.floor(Math.random() * PASSIVE_TEMPLATES.length);
+  return PASSIVE_TEMPLATES[index] ?? PASSIVE_TEMPLATES[0];
+}
 
-  await Promise.all(
-    times.map((time, index) =>
+function buildLegacyPlan(times: NotificationTime[]): NotificationPlan {
+  const sorted = [...times].sort((a, b) => a.hour - b.hour || a.minute - b.minute);
+  return {
+    check: sorted[0] ?? null,
+    passive: sorted.slice(1, 3),
+  };
+}
+
+export async function scheduleMotivationReminders(input: NotificationPlan | NotificationTime[]): Promise<void> {
+  const plan = Array.isArray(input) ? buildLegacyPlan(input) : input;
+  await Notifications.cancelAllScheduledNotificationsAsync();
+  const passiveTimes = plan.passive.slice(0, 2);
+  if (!plan.check && passiveTimes.length === 0) return;
+
+  const jobs: Promise<string>[] = [];
+
+  if (plan.check) {
+    jobs.push(
       Notifications.scheduleNotificationAsync({
         content: {
           title: i18n.t("notif.daily.title"),
           body: i18n.t("notif.daily.body"),
-          data: { target: "dailyCheckin", reminderId: index },
+          data: { target: "dailyCheckin", reminderKind: "check" },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          hour: plan.check.hour,
+          minute: plan.check.minute,
+          repeats: true,
+        },
+      })
+    );
+  }
+
+  passiveTimes.forEach((time, index) => {
+    const template = pickRandomPassiveTemplate();
+    jobs.push(
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: i18n.t(template.titleKey),
+          body: i18n.t(template.bodyKey),
+          data: { reminderKind: "passive", reminderId: index },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
@@ -53,12 +94,14 @@ export async function scheduleMotivationReminders(times: NotificationTime[]): Pr
           repeats: true,
         },
       })
-    )
-  );
+    );
+  });
+
+  await Promise.all(jobs);
 }
 
 export async function scheduleDailyMotivation(hour = 9, minute = 0): Promise<void> {
-  return scheduleMotivationReminders([{ hour, minute }]);
+  return scheduleMotivationReminders({ check: { hour, minute }, passive: [] });
 }
 
 /**
