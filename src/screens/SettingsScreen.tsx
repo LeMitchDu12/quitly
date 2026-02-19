@@ -352,6 +352,7 @@ export default function SettingsScreen() {
                 display="spinner"
                 onChange={handleTimeChange}
                 textColor={theme.colors.textPrimary}
+                style={styles.editorPicker}
               />
             </View>
             <View style={styles.editorActions}>
@@ -524,9 +525,13 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.divider,
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,    
   },
-  editorPicker: {},
+  editorPicker: {    
+    alignSelf: "center",
+    paddingRight: theme.spacing.sm,    
+    paddingLeft: theme.spacing.sm,    
+  },
   addReminderWrapper: {
     marginTop: theme.spacing.sm,
   },
