@@ -66,6 +66,7 @@
   "language": "Language",
   "languageAuto": "Uses the smartphone system language automatically",
   "premium": "Premium",
+  "premiumInactive": "Inactive",
   "setQuitDate": "Set quit date",
   "editInputs": "Edit inputs",
   "startToday": "Start today",

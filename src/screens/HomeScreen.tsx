@@ -47,15 +47,14 @@ export default function HomeScreen() {
     const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;
     const isPremium = getBool(StorageKeys.isPremium) ?? false;
     setProfile({ quitDate, cigsPerDay, pricePerPack, cigsPerPack, isPremium });
+
     const freshCheckins = readDailyCheckins();
     setCheckins(freshCheckins);
 
     const pendingAction = getString(StorageKeys.pendingAction);
     if (pendingAction === "dailyCheckin") {
       const hasToday = freshCheckins.some((entry) => entry.date === todayLocalISODate());
-      if (!hasToday) {
-        setDailyRelapseMode(false);
-      }
+      if (!hasToday) setDailyRelapseMode(false);
       setString(StorageKeys.pendingAction, "");
     }
   };
@@ -70,9 +69,10 @@ export default function HomeScreen() {
     }, [])
   );
 
-  const hasRelapses = useMemo(() => checkins.some((entry) => entry.smoked > 0), [checkins]);
-
-  const lastRelapse = useMemo(() => lastRelapseDate(checkins, profile?.quitDate ?? todayLocalISODate()), [checkins, profile]);
+  const lastRelapse = useMemo(
+    () => lastRelapseDate(checkins, profile?.quitDate ?? todayLocalISODate()),
+    [checkins, profile]
+  );
 
   const stats = useMemo(() => {
     if (!profile) return null;
@@ -193,35 +193,47 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
           <Text style={styles.brand}>{t("appName")}</Text>
-
           <Pressable style={styles.pill} onPress={() => setPaywallOpen(true)}>
             <Text style={[styles.pillText, profile.isPremium && { color: theme.colors.primary }]}>
-              {profile.isPremium ? `${t("premium")} ✓` : t("premium")}
+              {profile.isPremium ? `${t("premium")} PRO` : t("premium")}
             </Text>
           </Pressable>
         </View>
 
         <View style={styles.hero}>
+          <View style={styles.heroGlowA} />
+          <View style={styles.heroGlowB} />
           <Text style={styles.heroNumber}>{stats.days}</Text>
           <Text style={styles.heroLabel}>{t("daysSmokeFree")}</Text>
           <View style={styles.heroDivider} />
-        <Text style={styles.heroSub}>
-          {stats.days === 0
-            ? t("homeDayZero")
-            : lastRelapse
-            ? t("homeRelapseSubtitle", { date: formatDate(lastRelapse, i18n.language || "fr-FR") })
-            : t("homeKeepGoing")}
-        </Text>
+          <Text style={styles.heroSub}>
+            {stats.days === 0
+              ? t("homeDayZero")
+              : lastRelapse
+              ? t("homeRelapseSubtitle", { date: formatDate(lastRelapse, i18n.language || "fr-FR") })
+              : t("homeKeepGoing")}
+          </Text>
+        </View>
+
+        <View style={styles.metaRow}>
+          <View style={styles.metaCard}>
+            <Text style={styles.metaLabel}>{t("quitDate")}</Text>
+            <Text style={styles.metaValue}>{formatDate(profile.quitDate, i18n.language || "fr-FR")}</Text>
+          </View>
+          <View style={styles.metaCard}>
+            <Text style={styles.metaLabel}>{t("premium")}</Text>
+            <Text style={styles.metaValue}>{profile.isPremium ? t("settingsEnabled") : t("premiumInactive")}</Text>
+          </View>
         </View>
 
         {showDailyCheckin ? renderCheckinCard() : null}
-        <View style={{ height: theme.spacing.sm }} />
-        <StatCard icon="💸" value={savedLabel} label={t("saved")} />
+        <Text style={styles.statsTitle}>{t("progress")}</Text>
+        <StatCard icon="€" value={savedLabel} label={t("saved")} />
         <StatCard icon="🚭" value={`${stats.avoided}`} label={t("cigarettesAvoided")} />
-        <StatCard icon="⏳" value={`${stats.gainedHours}h`} label={t("timeGained")} />
+        <StatCard icon="⏱️" value={`${stats.gainedHours}h`} label={t("timeGained")} />
       </ScrollView>
 
       <PaywallModal
@@ -236,7 +248,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
-
+  content: { paddingBottom: theme.spacing.xl },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -263,7 +275,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 13,
   },
-
   hero: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.xl,
@@ -272,17 +283,69 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: theme.spacing.sm,
     marginBottom: theme.spacing.md,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+  },
+  heroGlowA: {
+    position: "absolute",
+    width: 180,
+    height: 180,
+    borderRadius: 999,
+    backgroundColor: "rgba(74,222,128,0.16)",
+    top: -70,
+    left: -50,
+  },
+  heroGlowB: {
+    position: "absolute",
+    width: 140,
+    height: 140,
+    borderRadius: 999,
+    backgroundColor: "rgba(74,222,128,0.10)",
+    bottom: -50,
+    right: -40,
   },
   heroNumber: { color: theme.colors.textPrimary, fontSize: 64, fontWeight: "900" },
   heroLabel: { color: theme.colors.textSecondary, marginTop: 6, fontSize: 16, fontWeight: "600" },
   heroDivider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 16 },
   heroSub: { color: theme.colors.textTertiary, textAlign: "center" },
-
+  metaRow: {
+    flexDirection: "row",
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  metaCard: {
+    flex: 1,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: theme.radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  metaLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+  },
+  metaValue: {
+    color: theme.colors.textPrimary,
+    fontWeight: "800",
+    marginTop: 4,
+    fontSize: 14,
+  },
+  statsTitle: {
+    color: theme.colors.textPrimary,
+    fontWeight: "800",
+    fontSize: 16,
+    marginBottom: theme.spacing.xs,
+  },
   checkinCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
     padding: 14,
     marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
   },
   checkinTitle: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "800" },
   checkinSubtitle: { color: theme.colors.textSecondary, marginTop: 4, marginBottom: 10 },
@@ -315,7 +378,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     padding: 12,
     marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
   },
   checkinDoneText: { color: theme.colors.textSecondary, fontWeight: "600" },
-  content: { paddingBottom: theme.spacing.xl },
 });

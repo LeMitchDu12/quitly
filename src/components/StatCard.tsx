@@ -22,12 +22,22 @@ export default function StatCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.elevated,
     borderRadius: theme.radius.lg,
-    padding: 20,
+    padding: 18,
     marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    shadowColor: "#000000",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
-  icon: { fontSize: 18, marginBottom: 6 },
-  value: { color: theme.colors.textPrimary, fontSize: theme.typography.h3.fontSize, fontWeight: "700" },
-  label: { color: theme.colors.textSecondary, fontSize: theme.typography.small.fontSize, marginTop: 2 },
+  icon: {
+    fontSize: 18,
+    marginBottom: 6,
+  },
+  value: { color: theme.colors.textPrimary, fontSize: 28, fontWeight: "800" },
+  label: { color: theme.colors.textSecondary, fontSize: theme.typography.small.fontSize, marginTop: 4 },
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+﻿import React, { useCallback, useMemo, useState } from "react";
 import { Text, View, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
@@ -189,7 +189,7 @@ export default function ProgressScreen() {
           <Text style={styles.brand}>{t("appName")}</Text>
           <Pressable style={styles.pill} onPress={() => setPaywallOpen(true)}>
             <Text style={[styles.pillText, isPremium && { color: theme.colors.primary }]}>
-              {isPremium ? `${t("premium")} ✓` : t("premium")}
+              {isPremium ? `${t("premium")} PRO` : t("premium")}
             </Text>
           </Pressable>
         </View>
@@ -197,8 +197,61 @@ export default function ProgressScreen() {
         <Text style={styles.title}>{t("progress")}</Text>
 
         <View style={styles.chartBox}>
+          <Text style={styles.chartTitle}>🏅 {t("relapseBadgesTitle")}</Text>
+          <Text style={styles.legendSubText}>{t("relapseBadgesSubtitle", { days: streakDays })}</Text>
+          <Text style={styles.legendSubText}>{t("relapseBadgesAnchorDate", { date: formatDateForLocale(streakAnchor, i18n.language || "fr-FR") })}</Text>
+          {isPremium ? (
+            <View style={styles.badgesWrap}>
+              {badgeMilestones.map((milestone) => {
+                const unlocked = streakDays >= milestone;
+                return (
+                  <View key={milestone} style={[styles.badge, unlocked ? styles.badgeOn : styles.badgeOff]}>
+                    <Text style={styles.badgeIcon}>{unlocked ? "✅" : "🔒"}</Text>
+                    <Text style={styles.badgeText}>{t("relapseBadgeDays", { days: milestone })}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.locked}>{t("premiumRelapseInsightsTeaser")}</Text>
+          )}
+        </View>
+
+        <View style={styles.chartBox}>
+          <Text style={styles.chartTitle}>🧾 {t("relapseHistoryTitle")}</Text>
+          {isPremium ? (
+            <View style={styles.historyWrap}>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyLabel}>{t("relapseHistoryThisWeek")}</Text>
+                <Text style={styles.historyValue}>{t("relapseHistoryCigsAndDays", { cigs: weekRelapseCigs, days: weekRelapseEntries.length })}</Text>
+              </View>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyLabel}>{t("relapseHistoryLast30Days")}</Text>
+                <Text style={styles.historyValue}>{t("relapseHistoryCigsAndDays", { cigs: monthRelapseCigs, days: monthRelapseEntries.length })}</Text>
+              </View>
+              <View style={{ marginTop: 10 }}>
+                {weekHistory.segments.map((segment) => {
+                  const pct = Math.max(8, Math.round((segment.smoked / weekHistory.max) * 100));
+                  return (
+                    <View key={segment.key} style={styles.projectionRow}>
+                      <Text style={styles.projectionLabel}>{segment.label}</Text>
+                      <Text style={styles.projectionValue}>{t("relapseHistorySmokedValue", { value: segment.smoked })}</Text>
+                      <View style={styles.projectionTrack}>
+                        <View style={[styles.historyFill, { width: `${pct}%` }]} />
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.locked}>{t("premiumRelapseInsightsTeaser")}</Text>
+          )}
+        </View>
+
+        <View style={styles.chartBox}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>{t("chartTitleSavings")}</Text>
+            <Text style={styles.chartTitle}>€ {t("chartTitleSavings")}</Text>
             <Text style={styles.chartValue}>{formatCurrencyEUR(totalSaved)}</Text>
           </View>
           {isPremium ? (
@@ -227,7 +280,7 @@ export default function ProgressScreen() {
 
         <View style={styles.chartBox}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>{t("chartTitleCigarettes")}</Text>
+            <Text style={styles.chartTitle}>🚭 {t("chartTitleCigarettes")}</Text>
             <Text style={styles.chartValue}>{totalAvoided.toLocaleString(i18n.language || "fr-FR")}</Text>
           </View>
           {isPremium ? (
@@ -256,7 +309,7 @@ export default function ProgressScreen() {
 
         <View style={styles.chartBox}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>{t("projectionSavingsTitle")}</Text>
+            <Text style={styles.chartTitle}>📈 {t("projectionSavingsTitle")}</Text>
             <Text style={styles.chartValue}>{t("projectionSavingsSubtitle")}</Text>
           </View>
           {isPremium ? (
@@ -276,59 +329,6 @@ export default function ProgressScreen() {
             </View>
           ) : (
             <Text style={styles.locked}>{t("chartsPremium")}</Text>
-          )}
-        </View>
-
-        <View style={styles.chartBox}>
-          <Text style={styles.chartTitle}>{t("relapseBadgesTitle")}</Text>
-          <Text style={styles.legendSubText}>{t("relapseBadgesSubtitle", { days: streakDays })}</Text>
-          <Text style={styles.legendSubText}>{t("relapseBadgesAnchorDate", { date: formatDateForLocale(streakAnchor, i18n.language || "fr-FR") })}</Text>
-          {isPremium ? (
-            <View style={styles.badgesWrap}>
-              {badgeMilestones.map((milestone) => {
-                const unlocked = streakDays >= milestone;
-                return (
-                  <View key={milestone} style={[styles.badge, unlocked ? styles.badgeOn : styles.badgeOff]}>
-                    <Text style={styles.badgeIcon}>{unlocked ? "OK" : "LOCK"}</Text>
-                    <Text style={styles.badgeText}>{t("relapseBadgeDays", { days: milestone })}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          ) : (
-            <Text style={styles.locked}>{t("premiumRelapseInsightsTeaser")}</Text>
-          )}
-        </View>
-
-        <View style={styles.chartBox}>
-          <Text style={styles.chartTitle}>{t("relapseHistoryTitle")}</Text>
-          {isPremium ? (
-            <View style={styles.historyWrap}>
-              <View style={styles.historyRow}>
-                <Text style={styles.historyLabel}>{t("relapseHistoryThisWeek")}</Text>
-                <Text style={styles.historyValue}>{t("relapseHistoryCigsAndDays", { cigs: weekRelapseCigs, days: weekRelapseEntries.length })}</Text>
-              </View>
-              <View style={styles.historyRow}>
-                <Text style={styles.historyLabel}>{t("relapseHistoryLast30Days")}</Text>
-                <Text style={styles.historyValue}>{t("relapseHistoryCigsAndDays", { cigs: monthRelapseCigs, days: monthRelapseEntries.length })}</Text>
-              </View>
-              <View style={{ marginTop: 10 }}>
-                {weekHistory.segments.map((segment) => {
-                  const pct = Math.max(8, Math.round((segment.smoked / weekHistory.max) * 100));
-                  return (
-                    <View key={segment.key} style={styles.projectionRow}>
-                      <Text style={styles.projectionLabel}>{segment.label}</Text>
-                      <Text style={styles.projectionValue}>{t("relapseHistorySmokedValue", { value: segment.smoked })}</Text>
-                      <View style={styles.projectionTrack}>
-                        <View style={[styles.historyFill, { width: `${pct}%` }]} />
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          ) : (
-            <Text style={styles.locked}>{t("premiumRelapseInsightsTeaser")}</Text>
           )}
         </View>
 
@@ -447,3 +447,4 @@ const styles = StyleSheet.create({
   item: { color: theme.colors.textPrimary, marginBottom: 12 },
   lockedText: { color: theme.colors.textTertiary },
 });
+
