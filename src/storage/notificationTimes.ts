@@ -3,7 +3,7 @@ import { getString, setString } from "./mmkv";
 
 export type NotificationTime = { hour: number; minute: number };
 
-const DEFAULT_TIMES: NotificationTime[] = [{ hour: 9, minute: 0 }];
+const DEFAULT_TIMES: NotificationTime[] = [];
 
 function normalize(time: NotificationTime): NotificationTime {
   const h = Math.max(0, Math.min(23, Math.floor(time.hour)));

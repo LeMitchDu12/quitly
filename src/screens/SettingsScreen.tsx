@@ -77,7 +77,7 @@ export default function SettingsScreen() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [notificationTimes, setNotificationTimes] = useState<NotificationTime[]>(() => readNotificationTimes());
   const [timePickerVisible, setTimePickerVisible] = useState(false);
-  const [editingTime, setEditingTime] = useState<number | null>(null);
+  const [editingTime, setEditingTime] = useState<number>(0);
   const [pickerDate, setPickerDate] = useState(new Date());
 
   useFocusEffect(
@@ -127,24 +127,22 @@ export default function SettingsScreen() {
   };
 
   const handleTimeChange = async (_: DateTimePickerEvent, selected?: Date) => {
+    if (!selected) return;
+    const targetIndex = editingTime >= notificationTimes.length ? 0 : editingTime;
+    const updated = [...notificationTimes];
+    updated[targetIndex] = { hour: selected.getHours(), minute: selected.getMinutes() };
+    setEditingTime(targetIndex);
+    await persistNotificationTimes(updated);
     if (Platform.OS === "android") {
       setTimePickerVisible(false);
     }
-    if (!selected) {
-      setEditingTime(null);
-      return;
-    }
-    if (editingTime == null) return;
-    const updated = [...notificationTimes];
-    updated[editingTime] = { hour: selected.getHours(), minute: selected.getMinutes() };
-    setEditingTime(null);
-    await persistNotificationTimes(updated);
   };
 
   const persistNotificationTimes = async (times: NotificationTime[]) => {
     const sorted = [...times].sort((a, b) => (a.hour - b.hour) || (a.minute - b.minute));
     setNotificationTimes(sorted);
     saveNotificationTimes(sorted);
+    setEditingTime((prev) => (sorted.length === 0 ? 0 : Math.min(prev, sorted.length - 1)));
     await rescheduleIfActive(sorted);
   };
 
@@ -152,12 +150,16 @@ export default function SettingsScreen() {
     if (notificationTimes.length >= 3) return;
     const newTimes = [...notificationTimes, { hour: 9, minute: 0 }];
     await persistNotificationTimes(newTimes);
+    setEditingTime(newTimes.length - 1);
+    setTimePickerVisible(true);
   };
 
   const removeReminderTime = async (index: number) => {
-    if (notificationTimes.length <= 1) return;
     const updated = notificationTimes.filter((_, idx) => idx !== index);
     await persistNotificationTimes(updated);
+    if (updated.length === 0) {
+      setTimePickerVisible(false);
+    }
   };
 
   const toggleNotifications = async () => {
@@ -243,55 +245,70 @@ export default function SettingsScreen() {
               tone={notificationsEnabled ? "danger" : "primary"}
             />
           </View>
-          {notificationsEnabled && isPremium ? (
-            <Text style={styles.hint}>
-              {t("notificationsScheduledAtTimes", {
-                times: notificationTimes.map(formatReminderTime).join(" • "),
-              })}
-            </Text>
-          ) : (
-            <Text style={styles.hint}>{t("notificationsDisabledHint")}</Text>
-          )}
-
-          {isPremium ? (
+          {notificationsEnabled && isPremium && (
             <>
-              <View style={styles.notificationList}>
-                {notificationTimes.map((time, index) => (
-                  <View key={formatReminderTime(time) + index} style={styles.notificationRow}>
-                    <Pressable style={styles.timeLabel} onPress={() => openTimePicker(index)}>
-                      <Text style={styles.notificationValue}>{formatReminderTime(time)}</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.timeRemove, notificationTimes.length <= 1 && styles.timeRemoveDisabled]}
-                      onPress={() => removeReminderTime(index)}
-                      disabled={notificationTimes.length <= 1}
-                    >
-                      <Text style={styles.timeRemoveText}>×</Text>
-                    </Pressable>
+              {notificationTimes.length > 0 ? (
+                <>
+                  <Text style={styles.hint}>
+                    {t("notificationsScheduledAtTimes", {
+                      times: notificationTimes.map(formatReminderTime).join(" • "),
+                    })}
+                  </Text>
+                  <View style={styles.notificationList}>
+                    {notificationTimes.map((time, index) => (
+                    <View key={`${formatReminderTime(time)}-${index}`} style={styles.reminderRow}>
+                      <Pressable
+                        style={[
+                          styles.reminderRowLabel,
+                          editingTime === index && styles.reminderRowLabelActive,
+                        ]}
+                        onPress={() => openTimePicker(index)}
+                      >
+                        <Text
+                          style={[
+                            styles.reminderRowText,
+                            editingTime === index && styles.reminderRowTextActive,
+                          ]}
+                        >
+                          {formatReminderTime(time)}
+                        </Text>
+                      </Pressable>
+                      <Pressable style={styles.timeRemoveIcon} onPress={() => removeReminderTime(index)}>
+                        <Text style={styles.timeRemoveText}>×</Text>
+                      </Pressable>
+                    </View>
+                    ))}
                   </View>
-                ))}
-              </View>
+                  {timePickerVisible && (
+                    <View style={styles.timePickerCard}>
+                      <DateTimePicker
+                        value={pickerDate}
+                        mode="time"
+                        is24Hour
+                        display={Platform.OS === "ios" ? "inline" : "spinner"}
+                        onChange={handleTimeChange}
+                      />
+                    </View>
+                  )}
+                </>
+              ) : (
+                <Text style={styles.hint}>{t("notificationsNoRemindersHint")}</Text>
+              )}
               <SecondaryButton title={t("notificationsAddReminder")} onPress={addReminderTime} />
               {notificationTimes.length >= 3 && (
                 <Text style={styles.hint}>{t("notificationsMaxReminders")}</Text>
               )}
-              {timePickerVisible && (
-                <DateTimePicker
-                  value={pickerDate}
-                  mode="time"
-                  is24Hour
-                  display={Platform.OS === "ios" ? "inline" : "spinner"}
-                  onChange={handleTimeChange}
-                />
-              )}
             </>
-          ) : (
+          )} 
+          
+          { !isPremium && (
             <View style={styles.notificationLocked}>
               <Text style={styles.hint}>{t("notificationsPremiumHint")}</Text>
               <View style={{ height: theme.spacing.sm }} />
               <SecondaryButton title={t("unlock")} onPress={() => setPaywallOpen(true)} />
             </View>
           )}
+
         </View>
 
         <View style={styles.block}>
@@ -400,6 +417,7 @@ const styles = StyleSheet.create({
   timeRemove: { marginLeft: 10, padding: 6 },
   timeRemoveDisabled: { opacity: 0.4 },
   timeRemoveText: { color: theme.colors.danger, fontWeight: "700", fontSize: 18 },
+  timeRemoveIcon: { marginLeft: 8, padding: 4 },
   notificationLocked: {
     marginTop: theme.spacing.sm,
     padding: 12,
@@ -407,5 +425,42 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.divider,
+  },
+  timePickerCard: {
+    marginTop: theme.spacing.sm,
+    padding: 12,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.elevated,
+  },
+  timePickerLabel: {
+    color: theme.colors.textSecondary,
+    marginBottom: 6,
+    fontSize: 12,
+  },
+  reminderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: theme.spacing.sm,
+  },
+  reminderRowLabel: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.elevated,
+  },
+  reminderRowLabelActive: {
+    borderColor: theme.colors.primary,
+    borderWidth: 1,
+  },
+  reminderRowText: {
+    color: theme.colors.textPrimary,
+    fontWeight: "700",
+  },
+  reminderRowTextActive: {
+    color: theme.colors.primary,
   },
 });
