@@ -154,7 +154,6 @@
   "shieldQuickHint": "Lance Quitly Shield et tiens 180 secondes.",
   "shieldTitle": "Quitly Shield",
   "shieldSubtitle": "Traverse l'envie en 180 secondes.",
-  "shieldPremiumVisualTag": "MODE PREMIUM IMMERSIF",
   "shieldStart": "Lancer 180s",
   "shieldPhase1": "Respire lentement. Tu tiens le cap.",
   "shieldPhase2": "{{days}} jours libres · {{money}} économisés",
@@ -179,15 +178,6 @@
   "shieldStatsNoData": "Pas encore de données.",
   "shieldStatsCount": "{{count}} session(s)",
   "shieldStatsFreeTeaser": "Passe Premium pour l'historique complet et l'analyse des heures à risque.",
-  "shieldVariantTitle": "Style visuel",
-  "shieldVariantPremiumOnly": "Les variantes visuelles sont réservées au Premium.",
-  "shieldVariantRandomPremium": "Mode Premium : une variante visuelle aléatoire est appliquée à chaque session.",
-  "shieldVariant": {
-    "random": "Aléatoire",
-    "default": "Défaut",
-    "morphing": "Morphing",
-    "tension": "Tension"
-  },
   "shieldCompletedShort": "validée",
   "shieldInterruptedShort": "interrompue",
   "shieldPaywallTitle": "Protège ta liberté.",

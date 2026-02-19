@@ -154,7 +154,6 @@
   "shieldQuickHint": "Start Quitly Shield and hold for 180 seconds.",
   "shieldTitle": "Quitly Shield",
   "shieldSubtitle": "Ride the urge in 180 seconds.",
-  "shieldPremiumVisualTag": "IMMERSIVE PREMIUM MODE",
   "shieldStart": "Start 180s",
   "shieldPhase1": "Breathe slowly. You are stable.",
   "shieldPhase2": "{{days}} smoke-free days · {{money}} saved",
@@ -179,15 +178,6 @@
   "shieldStatsNoData": "No data yet.",
   "shieldStatsCount": "{{count}} session(s)",
   "shieldStatsFreeTeaser": "Go Premium for full history and risk-hour analysis.",
-  "shieldVariantTitle": "Visual style",
-  "shieldVariantPremiumOnly": "Visual variants are Premium only.",
-  "shieldVariantRandomPremium": "Premium mode: a random visual variant is applied on each session.",
-  "shieldVariant": {
-    "random": "Random",
-    "default": "Default",
-    "morphing": "Morphing",
-    "tension": "Tension"
-  },
   "shieldCompletedShort": "completed",
   "shieldInterruptedShort": "interrupted",
   "shieldPaywallTitle": "Protect your freedom.",

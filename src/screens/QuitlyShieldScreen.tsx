@@ -334,10 +334,6 @@ export default function QuitlyShieldScreen() {
       <View style={styles.idleWrap}>
         <Text style={styles.title}>{t("shieldTitle")}</Text>
         <Text style={styles.subtitle}>{t("shieldSubtitle")}</Text>
-        <Text style={styles.subtitlePremium}>{t("shieldPremiumVisualTag")}</Text>
-        <Text style={styles.variantFreeHint}>
-          {isPremium ? t("shieldVariantRandomPremium") : t("shieldVariantPremiumOnly")}
-        </Text>
         {!isPremium && (
           <>
             <Text style={styles.limitText}>
@@ -647,21 +643,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     textAlign: "center",
     marginTop: 8,
-  },
-  subtitlePremium: {
-    color: theme.colors.primary,
-    textAlign: "center",
-    marginTop: 4,
-    fontSize: 11,
-    letterSpacing: 0.4,
-    fontWeight: "800",
-  },
-  variantFreeHint: {
-    marginTop: theme.spacing.xs,
-    color: theme.colors.textSecondary,
-    textAlign: "center",
-    fontSize: 11,
-    marginBottom: theme.spacing.xs,
   },
   limitText: {
     color: theme.colors.textSecondary,
