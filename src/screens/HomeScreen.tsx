@@ -112,6 +112,7 @@ export default function HomeScreen() {
   }
 
   const savedLabel = formatCurrencyEUR(stats.saved);
+  const showDailyCheckin = stats.days > 0 || !!todayCheckin || dailyRelapseMode;
 
   const unlockPremium = () => {
     setBool(StorageKeys.isPremium, true);
@@ -216,7 +217,7 @@ export default function HomeScreen() {
         </Text>
         </View>
 
-        {renderCheckinCard()}
+        {showDailyCheckin ? renderCheckinCard() : null}
         <View style={{ height: theme.spacing.sm }} />
         <StatCard icon="💸" value={savedLabel} label={t("saved")} />
         <StatCard icon="🚭" value={`${stats.avoided}`} label={t("cigarettesAvoided")} />

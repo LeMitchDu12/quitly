@@ -104,7 +104,8 @@ export default function SettingsScreen() {
   const pricePerPack = getNumber(StorageKeys.pricePerPack) ?? 12;
   const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;
   const isPremium = getBool(StorageKeys.isPremium) ?? false;
-  const notificationsEnabled = getBool(StorageKeys.notificationsEnabled) ?? true;
+  const notificationsEnabledPref = getBool(StorageKeys.notificationsEnabled) ?? false;
+  const notificationsEnabled = notificationsEnabledPref && isPremium;
   const language =
     (getString(StorageKeys.language) as "fr" | "en" | null) ??
     (i18n.language?.startsWith("fr") ? "fr" : "en");
@@ -133,7 +134,7 @@ export default function SettingsScreen() {
   const setLang = async (lng: "fr" | "en") => {
     await i18n.changeLanguage(lng);
     setString(StorageKeys.language, lng);
-    const enabled = getBool(StorageKeys.notificationsEnabled) ?? true;
+    const enabled = getBool(StorageKeys.notificationsEnabled) ?? false;
     if (enabled && isPremium) {
       await scheduleMotivationReminders(readNotificationPlan());
     }
