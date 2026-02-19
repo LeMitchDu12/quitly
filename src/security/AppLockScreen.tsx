@@ -25,6 +25,7 @@ export default function AppLockScreen({
   const [stage, setStage] = useState<Stage>("biometric");
   const breath = useRef(new Animated.Value(0)).current;
   const successAnim = useRef(new Animated.Value(0)).current;
+  const codeButtonOpacity = useRef(new Animated.Value(0)).current;
   const didAutoAttemptRef = useRef(false);
 
   useEffect(() => {
@@ -93,9 +94,19 @@ export default function AppLockScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const shouldShow = !isUnlocking && !success;
+    Animated.timing(codeButtonOpacity, {
+      toValue: shouldShow ? 1 : 0,
+      duration: shouldShow ? 220 : 120,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [codeButtonOpacity, isUnlocking, success]);
+
   const haloOpacity = breath.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.15, 0.25],
+    outputRange: [0.12, 0.21],
   });
 
   const haloScale = breath.interpolate({
@@ -152,11 +163,11 @@ export default function AppLockScreen({
       </View>
 
       {!isUnlocking && !success ? (
-        <View style={styles.codeActionWrap}>
+        <Animated.View style={[styles.codeActionWrap, { opacity: codeButtonOpacity }]}>
           <Pressable style={[styles.retryButton, styles.codeButton]} onPress={runCodeFallback}>
             <Text style={styles.retryText}>{t("lockUseCode")}</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -189,9 +200,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoImage: {
-    width: 56,
-    height: 56,
-    opacity: 0.9,
+    width: 74,
+    height: 74,
+    opacity: 0.94,
     marginBottom: 2,
   },
   logo: {
