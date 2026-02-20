@@ -27,25 +27,41 @@ function sanitizeMonthlyReport(value: unknown): MonthlyReport | null {
   if (!isObject(value.totals)) return null;
 
   const totals = value.totals as Record<string, unknown>;
-  const requiredNumericKeys = [
-    "daysInMonth",
-    "daysTracked",
-    "daysSmokeFree",
-    "consistencyPct",
-    "cravingsBeaten",
-    "moneySavedMonth",
-    "moneySavedTotal",
-    "cigarettesAvoidedMonth",
-    "cigarettesAvoidedTotal",
-  ] as const;
-
+  const requiredNumericKeys = ["daysInMonth", "daysTracked", "daysSmokeFree", "consistencyPct", "cravingsBeaten"] as const;
   for (const key of requiredNumericKeys) {
-    if (typeof totals[key] !== "number" || !Number.isFinite(totals[key] as number)) {
-      return null;
-    }
+    if (typeof totals[key] !== "number" || !Number.isFinite(totals[key] as number)) return null;
   }
 
-  return value as MonthlyReport;
+  const normalizedTotals = {
+    daysInMonth: totals.daysInMonth as number,
+    daysTracked: totals.daysTracked as number,
+    daysSmokeFree: totals.daysSmokeFree as number,
+    consistencyPct: totals.consistencyPct as number,
+    cravingsBeaten: totals.cravingsBeaten as number,
+    moneySavedMonth: typeof totals.moneySavedMonth === "number" && Number.isFinite(totals.moneySavedMonth) ? (totals.moneySavedMonth as number) : 0,
+    moneySavedTotal: typeof totals.moneySavedTotal === "number" && Number.isFinite(totals.moneySavedTotal) ? (totals.moneySavedTotal as number) : 0,
+    cigarettesSmokedMonth:
+      typeof totals.cigarettesSmokedMonth === "number" && Number.isFinite(totals.cigarettesSmokedMonth)
+        ? (totals.cigarettesSmokedMonth as number)
+        : 0,
+    relapseDaysMonth:
+      typeof totals.relapseDaysMonth === "number" && Number.isFinite(totals.relapseDaysMonth)
+        ? (totals.relapseDaysMonth as number)
+        : 0,
+    cigarettesAvoidedMonth:
+      typeof totals.cigarettesAvoidedMonth === "number" && Number.isFinite(totals.cigarettesAvoidedMonth)
+        ? (totals.cigarettesAvoidedMonth as number)
+        : 0,
+    cigarettesAvoidedTotal:
+      typeof totals.cigarettesAvoidedTotal === "number" && Number.isFinite(totals.cigarettesAvoidedTotal)
+        ? (totals.cigarettesAvoidedTotal as number)
+        : 0,
+  };
+
+  return {
+    ...(value as MonthlyReport),
+    totals: normalizedTotals,
+  };
 }
 
 function parseJsonMap<T>(raw: string | undefined, sanitizer: (value: unknown) => T | null): Record<string, T> {

@@ -41,15 +41,19 @@ function addDaysISO(dateISO: string, delta: number) {
   return `${y}-${m}-${day}`;
 }
 
-function clampISODateToToday(dateISO: string) {
-  const candidate = parseISODate(dateISO);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const normalized = new Date(candidate.getFullYear(), candidate.getMonth(), candidate.getDate());
-  if (normalized > today) return todayLocalISODate();
-  const y = normalized.getFullYear();
-  const m = String(normalized.getMonth() + 1).padStart(2, "0");
-  const day = String(normalized.getDate()).padStart(2, "0");
+function clampISODateInRange(dateISO: string, minISO: string, maxISO: string) {
+  const min = parseISODate(minISO);
+  const max = parseISODate(maxISO);
+  const value = parseISODate(dateISO);
+
+  const minTime = new Date(min.getFullYear(), min.getMonth(), min.getDate()).getTime();
+  const maxTime = new Date(max.getFullYear(), max.getMonth(), max.getDate()).getTime();
+  const valueTime = new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+
+  const clamped = valueTime < minTime ? min : valueTime > maxTime ? max : value;
+  const y = clamped.getFullYear();
+  const m = String(clamped.getMonth() + 1).padStart(2, "0");
+  const day = String(clamped.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
@@ -119,9 +123,17 @@ export default function HomeScreen() {
 
   const today = todayLocalISODate();
   const todayCheckin = useMemo(() => checkins.find((entry) => entry.date === today), [checkins, today]);
+  const currentMonthKey = today.slice(0, 7);
+  const monthRelapseCount = useMemo(
+    () =>
+      checkins.filter(
+        (entry) => entry.date.startsWith(`${currentMonthKey}-`) && entry.smoked > 0 && entry.date >= profile.quitDate
+      ).length,
+    [checkins, currentMonthKey, profile.quitDate]
+  );
 
   const saveCheckin = (dateISO: string, smoked: number) => {
-    upsertDailyCheckin(clampISODateToToday(dateISO), smoked);
+    upsertDailyCheckin(clampISODateInRange(dateISO, profile.quitDate, today), smoked);
     setCheckins(readDailyCheckins());
     setDailyRelapseMode(false);
     setDailyCigs(1);
@@ -145,7 +157,7 @@ export default function HomeScreen() {
     const y = selected.getFullYear();
     const m = String(selected.getMonth() + 1).padStart(2, "0");
     const day = String(selected.getDate()).padStart(2, "0");
-    setSelectedRelapseDate(clampISODateToToday(`${y}-${m}-${day}`));
+    setSelectedRelapseDate(clampISODateInRange(`${y}-${m}-${day}`, profile.quitDate, today));
   };
 
   if (!profile || !stats) {
@@ -185,13 +197,13 @@ export default function HomeScreen() {
           <View style={styles.quickRow}>
             <Pressable
               style={[styles.quickChip, isTodaySelected && styles.quickChipActive]}
-              onPress={() => setSelectedRelapseDate(today)}
+              onPress={() => setSelectedRelapseDate(clampISODateInRange(today, profile.quitDate, today))}
             >
               <Text style={[styles.quickText, isTodaySelected && styles.quickTextActive]}>{t("onboardingToday")}</Text>
             </Pressable>
             <Pressable
               style={[styles.quickChip, isYesterdaySelected && styles.quickChipActive]}
-              onPress={() => setSelectedRelapseDate(yesterday)}
+              onPress={() => setSelectedRelapseDate(clampISODateInRange(yesterday, profile.quitDate, today))}
             >
               <Text style={[styles.quickText, isYesterdaySelected && styles.quickTextActive]}>{t("onboardingYesterday")}</Text>
             </Pressable>
@@ -210,6 +222,7 @@ export default function HomeScreen() {
               <DateTimePicker
                 value={parseISODate(selectedRelapseDate)}
                 mode="date"
+                minimumDate={parseISODate(profile.quitDate)}
                 maximumDate={new Date()}
                 display={Platform.OS === "ios" ? "inline" : "default"}
                 onChange={onRelapseDateChange}
@@ -252,9 +265,9 @@ export default function HomeScreen() {
       return (
         <View style={styles.checkinDone}>
           <Text style={styles.checkinDoneText}>
-            {todayCheckin.smoked > 0
-              ? t("dailyCheckinLoggedWithCount", { count: todayCheckin.smoked })
-              : t("dailyCheckinLoggedNoRelapse")}
+            {monthRelapseCount > 0
+              ? t("homeRelapseCountThisMonth", { count: monthRelapseCount })
+              : t("homeRelapseCountThisMonthZero")}
           </Text>
           <View style={{ marginTop: theme.spacing.sm }}>
             <SecondaryButton title={t("dailyCheckinEdit")} onPress={editTodayCheckin} />
@@ -276,7 +289,7 @@ export default function HomeScreen() {
             onPress={() => {
               setDailyRelapseMode(true);
               setDailyCigs(1);
-              setSelectedRelapseDate(today);
+              setSelectedRelapseDate(clampISODateInRange(today, profile.quitDate, today));
               setShowRelapseDatePicker(false);
             }}
           >

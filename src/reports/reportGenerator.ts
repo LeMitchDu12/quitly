@@ -80,8 +80,10 @@ export function getTopWeekdaysFromSessions(sessions: ShieldSession[], topN = 2):
     .map(([weekday]) => weekday);
 }
 
-function getMonthStatuses(monthKey: string, dailyStatusMap: DailyStatusMap) {
-  return Object.values(dailyStatusMap).filter((entry) => entry.dateKey.startsWith(`${monthKey}-`));
+function getMonthStatuses(monthKey: string, dailyStatusMap: DailyStatusMap, quitDate: string) {
+  return Object.values(dailyStatusMap).filter(
+    (entry) => entry.dateKey.startsWith(`${monthKey}-`) && entry.dateKey >= quitDate
+  );
 }
 
 function sumActualSmoked(statuses: { smoked: boolean; cigarettesSmoked?: number }[]) {
@@ -109,12 +111,19 @@ function toSafeDate(value: string, fallback: Date) {
   return Number.isNaN(parsed.getTime()) ? fallback : parsed;
 }
 
+function diffDaysInclusive(start: Date, end: Date) {
+  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  if (e < s) return 0;
+  return Math.floor((e.getTime() - s.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+}
+
 export function generateMonthlyReport(input: GenerateMonthlyReportInput): MonthlyReport {
   const { monthKey, dailyStatusMap, shieldSessions, profile, previousReport, now = new Date() } = input;
   const { start: monthStart, end: monthEnd } = getMonthBounds(monthKey);
   const reportCutoff = isCurrentMonth(monthKey, now) ? now : monthEnd;
   const daysInMonth = getDaysInMonth(monthKey);
-  const statuses = getMonthStatuses(monthKey, dailyStatusMap);
+  const statuses = getMonthStatuses(monthKey, dailyStatusMap, profile.quitDate);
   const daysTracked = statuses.length;
   const daysSmokeFree = statuses.filter((status) => !status.smoked).length;
   const consistencyPct = daysTracked > 0 ? Math.round((daysSmokeFree / daysTracked) * 100) : 0;
@@ -129,8 +138,12 @@ export function generateMonthlyReport(input: GenerateMonthlyReportInput): Monthl
   const topHours = getTopHoursFromSessions(completedInMonth, 3);
   const topWeekdays = getTopWeekdaysFromSessions(completedInMonth, 2);
 
-  const baselineMonth = clampNonNegativeInt(profile.cigsPerDay) * daysInMonth;
+  const quitDate = toSafeDate(`${profile.quitDate}T00:00:00`, monthStart);
+  const monthBaselineStart = quitDate > monthStart ? quitDate : monthStart;
+  const baselineDaysInMonth = diffDaysInclusive(monthBaselineStart, reportCutoff);
+  const baselineMonth = clampNonNegativeInt(profile.cigsPerDay) * baselineDaysInMonth;
   const actualMonth = sumActualSmoked(statuses);
+  const relapseDaysMonth = statuses.filter((status) => status.smoked).length;
   const cigarettesAvoidedMonth = Math.max(0, baselineMonth - actualMonth);
 
   const pricePerCigarette =
@@ -178,6 +191,8 @@ export function generateMonthlyReport(input: GenerateMonthlyReportInput): Monthl
       cravingsBeaten,
       moneySavedMonth,
       moneySavedTotal,
+      cigarettesSmokedMonth: actualMonth,
+      relapseDaysMonth,
       cigarettesAvoidedMonth,
       cigarettesAvoidedTotal,
     },

@@ -12,6 +12,8 @@ export type MonthlyReportTotals = {
   cravingsBeaten: number;
   moneySavedMonth: number;
   moneySavedTotal: number;
+  cigarettesSmokedMonth: number;
+  relapseDaysMonth: number;
   cigarettesAvoidedMonth: number;
   cigarettesAvoidedTotal: number;
 };

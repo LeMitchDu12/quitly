@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -20,7 +20,7 @@ import {
   saveMonthlyReportSnapshot,
   syncDailyStatusFromCheckins,
 } from "../reports/reportStorage";
-import { getMonthLabel, getPreviousMonthKey, isCurrentMonth, listLastMonthKeys } from "../reports/reportSelectors";
+import { getMonthLabel, getPreviousMonthKey, listLastMonthKeys } from "../reports/reportSelectors";
 import type { MonthlyReport } from "../reports/reportTypes";
 import { theme } from "../theme";
 import type { RootStackParamList } from "../navigation/Root";
@@ -43,6 +43,20 @@ function readProfile(): ReportProfile {
   };
 }
 
+function toMonthKeyFromISODate(isoDate: string) {
+  if (!isoDate || isoDate.length < 7) return null;
+  const monthKey = isoDate.slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(monthKey) ? monthKey : null;
+}
+
+function listMonthKeysSinceQuit(quitDate: string, maxCount = 12) {
+  const recent = listLastMonthKeys(maxCount);
+  const quitMonthKey = toMonthKeyFromISODate(quitDate);
+  if (!quitMonthKey) return recent;
+  const filtered = recent.filter((monthKey) => monthKey >= quitMonthKey);
+  return filtered.length > 0 ? filtered : [recent[0]];
+}
+
 function formatDelta(value: number | undefined, suffix = "") {
   if (value == null) return "--";
   if (value === 0) return `0${suffix}`;
@@ -53,7 +67,7 @@ export default function MonthlyReportScreen() {
   const { t, i18n } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [profile, setProfile] = useState<ReportProfile>(() => readProfile());
-  const monthKeys = useMemo(() => listLastMonthKeys(12), []);
+  const monthKeys = useMemo(() => listMonthKeysSinceQuit(profile.quitDate, 12), [profile.quitDate]);
   const [selectedMonthKey, setSelectedMonthKey] = useState(monthKeys[0]);
   const [report, setReport] = useState<MonthlyReport | null>(null);
   const [reportsMap, setReportsMap] = useState<Record<string, MonthlyReport>>({});
@@ -61,38 +75,42 @@ export default function MonthlyReportScreen() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const contentOpacity = useRef(new Animated.Value(1)).current;
 
+  useEffect(() => {
+    if (monthKeys.length === 0) return;
+    if (!monthKeys.includes(selectedMonthKey)) {
+      setSelectedMonthKey(monthKeys[0]);
+    }
+  }, [monthKeys, selectedMonthKey]);
+
   const loadReport = useCallback((monthKey: string) => {
     setLoading(true);
-    const nextProfile = readProfile();
-    setProfile(nextProfile);
+    try {
+      const nextProfile = readProfile();
+      setProfile(nextProfile);
 
-    const checkins = readDailyCheckins();
-    syncDailyStatusFromCheckins(checkins);
-    const dailyStatusMap = readDailyStatusMap();
-    const shieldSessions = readShieldSessions();
-    const map = readMonthlyReportsMap();
-    const prevKey = getPreviousMonthKey(monthKey);
-    const previousReport = map[prevKey];
-    const existing = map[monthKey];
+      const checkins = readDailyCheckins();
+      syncDailyStatusFromCheckins(checkins);
+      const dailyStatusMap = readDailyStatusMap();
+      const shieldSessions = readShieldSessions();
+      const map = readMonthlyReportsMap();
+      const prevKey = getPreviousMonthKey(monthKey);
+      const previousReport = map[prevKey];
 
-    if (existing && !isCurrentMonth(monthKey)) {
-      setReport(existing);
-      setReportsMap(map);
+      const generated = generateMonthlyReport({
+        monthKey,
+        dailyStatusMap,
+        shieldSessions,
+        profile: nextProfile,
+        previousReport,
+      });
+      const nextMap = saveMonthlyReportSnapshot(generated);
+      setReportsMap(nextMap);
+      setReport(generated);
+    } catch {
+      setReport(null);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const generated = generateMonthlyReport({
-      monthKey,
-      dailyStatusMap,
-      shieldSessions,
-      profile: nextProfile,
-      previousReport,
-    });
-    const nextMap = saveMonthlyReportSnapshot(generated);
-    setReportsMap(nextMap);
-    setReport(generated);
-    setLoading(false);
   }, []);
 
   useFocusEffect(
@@ -133,6 +151,8 @@ export default function MonthlyReportScreen() {
     .filter((item): item is MonthlyReport => item != null);
 
   const noTracking = report != null && report.totals.daysTracked === 0;
+  const cigarettesSmokedMonth = Math.max(0, report?.totals.cigarettesSmokedMonth ?? 0);
+  const relapseDaysMonth = Math.max(0, report?.totals.relapseDaysMonth ?? 0);
   const consistencyValue = report == null
     ? "--"
     : report.totals.daysTracked > 0
@@ -205,6 +225,16 @@ export default function MonthlyReportScreen() {
                   total: formatMoney(report.totals.moneySavedTotal),
                 })}
               />
+              <ReportCard
+                delayMs={100}
+                title={t("monthly_report.cigs_smoked")}
+                value={cigarettesSmokedMonth.toLocaleString(i18n.language || "fr")}
+              />
+              <ReportCard
+                delayMs={110}
+                title={t("monthly_report.relapse_days")}
+                value={relapseDaysMonth.toLocaleString(i18n.language || "fr")}
+              />
               {profile.isPremium ? (
                 <>
                   <ReportCard
@@ -238,7 +268,11 @@ export default function MonthlyReportScreen() {
                         : "--"
                     }
                   />
-                  <ReportCard delayMs={240} title={t("monthly_report.insight")} value={t(report.insight?.key || "monthly_report.insight.keep_going", report.insight?.params)} />
+                  <ReportCard
+                    delayMs={240}
+                    title={t("monthly_report.insight_title")}
+                    value={t(report.insight?.key || "monthly_report.insight.keep_going", report.insight?.params)}
+                  />
                 </>
               ) : (
                 <>
@@ -253,7 +287,7 @@ export default function MonthlyReportScreen() {
                     onPress={() => setPaywallOpen(true)}
                   />
                   <LockedReportCard
-                    title={t("monthly_report.insight")}
+                    title={t("monthly_report.insight_title")}
                     subtitle={t("monthly_report.unlock_subtitle")}
                     onPress={() => setPaywallOpen(true)}
                   />
