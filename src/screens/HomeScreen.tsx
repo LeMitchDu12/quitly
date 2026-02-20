@@ -122,18 +122,19 @@ export default function HomeScreen() {
   }, [checkins, profile]);
 
   const today = todayLocalISODate();
+  const quitDateISO = profile?.quitDate ?? today;
   const todayCheckin = useMemo(() => checkins.find((entry) => entry.date === today), [checkins, today]);
   const currentMonthKey = today.slice(0, 7);
   const monthRelapseCount = useMemo(
     () =>
       checkins.filter(
-        (entry) => entry.date.startsWith(`${currentMonthKey}-`) && entry.smoked > 0 && entry.date >= profile.quitDate
+        (entry) => entry.date.startsWith(`${currentMonthKey}-`) && entry.smoked > 0 && entry.date >= quitDateISO
       ).length,
-    [checkins, currentMonthKey, profile.quitDate]
+    [checkins, currentMonthKey, quitDateISO]
   );
 
   const saveCheckin = (dateISO: string, smoked: number) => {
-    upsertDailyCheckin(clampISODateInRange(dateISO, profile.quitDate, today), smoked);
+    upsertDailyCheckin(clampISODateInRange(dateISO, quitDateISO, today), smoked);
     setCheckins(readDailyCheckins());
     setDailyRelapseMode(false);
     setDailyCigs(1);
@@ -157,7 +158,7 @@ export default function HomeScreen() {
     const y = selected.getFullYear();
     const m = String(selected.getMonth() + 1).padStart(2, "0");
     const day = String(selected.getDate()).padStart(2, "0");
-    setSelectedRelapseDate(clampISODateInRange(`${y}-${m}-${day}`, profile.quitDate, today));
+    setSelectedRelapseDate(clampISODateInRange(`${y}-${m}-${day}`, quitDateISO, today));
   };
 
   if (!profile || !stats) {
@@ -197,13 +198,13 @@ export default function HomeScreen() {
           <View style={styles.quickRow}>
             <Pressable
               style={[styles.quickChip, isTodaySelected && styles.quickChipActive]}
-              onPress={() => setSelectedRelapseDate(clampISODateInRange(today, profile.quitDate, today))}
+              onPress={() => setSelectedRelapseDate(clampISODateInRange(today, quitDateISO, today))}
             >
               <Text style={[styles.quickText, isTodaySelected && styles.quickTextActive]}>{t("onboardingToday")}</Text>
             </Pressable>
             <Pressable
               style={[styles.quickChip, isYesterdaySelected && styles.quickChipActive]}
-              onPress={() => setSelectedRelapseDate(clampISODateInRange(yesterday, profile.quitDate, today))}
+              onPress={() => setSelectedRelapseDate(clampISODateInRange(yesterday, quitDateISO, today))}
             >
               <Text style={[styles.quickText, isYesterdaySelected && styles.quickTextActive]}>{t("onboardingYesterday")}</Text>
             </Pressable>
@@ -222,7 +223,7 @@ export default function HomeScreen() {
               <DateTimePicker
                 value={parseISODate(selectedRelapseDate)}
                 mode="date"
-                minimumDate={parseISODate(profile.quitDate)}
+                minimumDate={parseISODate(quitDateISO)}
                 maximumDate={new Date()}
                 display={Platform.OS === "ios" ? "inline" : "default"}
                 onChange={onRelapseDateChange}
@@ -289,7 +290,7 @@ export default function HomeScreen() {
             onPress={() => {
               setDailyRelapseMode(true);
               setDailyCigs(1);
-              setSelectedRelapseDate(clampISODateInRange(today, profile.quitDate, today));
+              setSelectedRelapseDate(clampISODateInRange(today, quitDateISO, today));
               setShowRelapseDatePicker(false);
             }}
           >
