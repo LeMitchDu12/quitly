@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView } from "react-native";
+import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView, Linking } from "react-native";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -9,7 +9,7 @@ import { theme } from "../theme";
 import i18n from "../i18n";
 import { RootStackParamList } from "../navigation/Root";
 import { StorageKeys } from "../storage/keys";
-import { clearStorage, getNumber, getString, getBool, setBool, setString } from "../storage/mmkv";
+import { getNumber, getString, getBool, setBool, setString } from "../storage/mmkv";
 import PaywallModal from "../components/PaywallModal";
 import PrimaryButton from "../components/PrimaryButton";
 import SecondaryButton from "../components/SecondaryButton";
@@ -28,6 +28,12 @@ import {
   isMonthlyReportNotificationFeatureEnabled,
   setMonthlyReportNotificationEnabled,
 } from "../reports/reportStorage";
+import {
+  getLaunchMode,
+  isPremium as hasPremiumEntitlement,
+  isRevenueCatConfigured,
+  restore as restoreRevenueCatPurchases,
+} from "../purchases";
 
 type EditorTarget = { kind: "check" } | { kind: "passive"; index: number } | null;
 
@@ -116,6 +122,8 @@ export default function SettingsScreen() {
   const isPremium = getBool(StorageKeys.isPremium) ?? false;
   const notificationsEnabledPref = getBool(StorageKeys.notificationsEnabled) ?? false;
   const notificationsEnabled = notificationsEnabledPref && isPremium;
+  const launchMode = getLaunchMode();
+  const needsRevenueCatReminder = launchMode !== "expo_go" && !isRevenueCatConfigured();
   const monthlyReportNotifFeatureEnabled = isMonthlyReportNotificationFeatureEnabled();
   const monthlyReportNotifEnabled = isMonthlyReportNotificationEnabled();
   const lockEnabled = getBool(StorageKeys.securityLockEnabled) ?? false;
@@ -268,23 +276,34 @@ export default function SettingsScreen() {
     refresh();
   };
 
-  const restorePurchases = async () => {
-    Alert.alert(t("restore"), t("settingsRestoreNotConnected"));
+  const handleRestorePurchases = async () => {
+    try {
+      const info = await restoreRevenueCatPurchases();
+      const premium = hasPremiumEntitlement(info);
+      setBool(StorageKeys.isPremium, premium);
+      refresh();
+      if (premium) {
+        Alert.alert(t("restore"), t("paywallPremiumEnabled"));
+      } else {
+        Alert.alert(t("restore"), t("settingsNoActiveSubscription"));
+      }
+    } catch {
+      Alert.alert(t("settingsNotifErrorTitle"), t("purchasesUnavailableExpoGo"));
+    }
   };
 
-  const clearAppData = () => {
-    Alert.alert(t("settingsClearTitle"), t("settingsClearBody"), [
-      { text: t("settingsCancel"), style: "cancel" },
-      {
-        text: t("settingsClearAction"),
-        style: "destructive",
-        onPress: async () => {
-          await cancelAllNotifications();
-          await clearStorage();
-          refresh();
-        },
-      },
-    ]);
+  const openManageSubscription = async () => {
+    const url = "https://apps.apple.com/account/subscriptions";
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert(t("settingsNotifErrorTitle"), t("settingsManageSubscriptionError"));
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(t("settingsNotifErrorTitle"), t("settingsManageSubscriptionError"));
+    }
   };
 
   const unlockPremium = () => {
@@ -471,8 +490,10 @@ export default function SettingsScreen() {
           <Text style={styles.section}>{t("premium")}</Text>
           <Row label={t("settingsStatus")} value={isPremium ? t("settingsEnabled") : t("settingsFree")} />
           <View style={styles.chipsRow}>
-            <Chip title={t("restore")} onPress={restorePurchases} />
+            <Chip title={t("restore")} onPress={handleRestorePurchases} />
+            <Chip title={t("manageSubscription")} onPress={openManageSubscription} />
           </View>
+          {needsRevenueCatReminder ? <Text style={styles.hint}>{t("settingsRevenueCatReminder")}</Text> : null}
           <Text style={styles.hint}>
             {Platform.OS === "ios" ? t("settingsSubsIOS") : t("settingsSubsAndroid")}
           </Text>
@@ -480,10 +501,15 @@ export default function SettingsScreen() {
 
         <View style={styles.block}>
           <Text style={styles.section}>{t("settingsData")}</Text>
+          <Pressable style={styles.linkRow} onPress={() => navigation.navigate("PrivacyPolicy")}>
+            <Text style={styles.linkRowLabel}>{t("settingsPrivacyPolicy")}</Text>
+            <Text style={styles.linkRowArrow}>›</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => navigation.navigate("ResetData")}>
+            <Text style={[styles.linkRowLabel, { color: theme.colors.danger }]}>{t("settingsResetAllData")}</Text>
+            <Text style={styles.linkRowArrow}>›</Text>
+          </Pressable>
           <Text style={styles.hint}>{t("settingsClearHint")}</Text>
-          <View style={styles.chipsRow}>
-            <Chip title={t("settingsClearAction")} onPress={clearAppData} tone="danger" />
-          </View>
         </View>
       </ScrollView>
 
@@ -686,5 +712,22 @@ const styles = StyleSheet.create({
   },
   editorButtonWrapper: {
     flex: 1,
+  },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.divider,
+    paddingVertical: 12,
+  },
+  linkRowLabel: {
+    color: theme.colors.textPrimary,
+    fontWeight: "700",
+  },
+  linkRowArrow: {
+    color: theme.colors.textTertiary,
+    fontSize: 18,
+    lineHeight: 18,
   },
 });

@@ -6,11 +6,12 @@ import i18n from "./src/i18n";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import RootNavigator from "./src/navigation/Root"; 
 import { theme } from "./src/theme";
-import { getString, hydrateStorage, setString } from "./src/storage/mmkv";
+import { getString, hydrateStorage, setBool, setString } from "./src/storage/mmkv";
 import { StorageKeys } from "./src/storage/keys";
 import { goToHomeTab, navigationRef } from "./src/navigation";
 import { useAppLock } from "./src/security/useAppLock";
 import AppLockScreen from "./src/security/AppLockScreen";
+import { getPremiumStatusFromStore } from "./src/purchases";
 
 const navTheme = {
   ...DefaultTheme,
@@ -96,6 +97,19 @@ export default function App() {
     if (!isReady) return;
     syncFromStorage();
   }, [isReady, syncFromStorage]);
+
+  useEffect(() => {
+    if (!isReady) return;
+
+    getPremiumStatusFromStore()
+      .then((premiumStatus) => {
+        if (premiumStatus == null) return;
+        setBool(StorageKeys.isPremium, premiumStatus);
+      })
+      .catch(() => {
+        // Ignore purchase sync failure to keep app startup resilient.
+      });
+  }, [isReady]);
 
   if (!isReady) {
     return (

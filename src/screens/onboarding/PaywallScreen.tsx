@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Alert, Linking } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useTranslation } from "react-i18next";
 import Screen from "../../components/Screen";
@@ -12,6 +12,7 @@ import { setOnboardingComplete } from "../../storage/profile";
 import { requestNotifPermissions, scheduleMotivationReminders } from "../../notifications";
 import { readNotificationPlan } from "../../storage/notificationTimes";
 import OnboardingHeader from "../../components/OnboardingHeader";
+import { initPurchases, isPremium as hasPremiumEntitlement, restore as restorePurchases } from "../../purchases";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Paywall">;
 type Plan = "annual" | "monthly";
@@ -56,9 +57,14 @@ export default function PaywallScreen({ navigation }: Props) {
   const [selectedPlan, setSelectedPlan] = useState<Plan>("annual");
   const [busy, setBusy] = useState(false);
   const [localPremium, setLocalPremium] = useState<boolean>(() => getBool(StorageKeys.isPremium) ?? false);
+  const [purchasesUnavailable, setPurchasesUnavailable] = useState(false);
 
   useEffect(() => {
-    // Placeholder for optional RevenueCat init on EAS builds.
+    initPurchases()
+      .then((ready) => setPurchasesUnavailable(!ready))
+      .catch(() => {
+        setPurchasesUnavailable(true);
+      });
   }, []);
 
   const finishAndGoApp = () => {
@@ -101,11 +107,40 @@ export default function PaywallScreen({ navigation }: Props) {
   };
 
   const onRestore = async () => {
+    if (purchasesUnavailable) {
+      Alert.alert(t("restore"), t("purchasesUnavailableExpoGo"));
+      return;
+    }
+
     setBusy(true);
     try {
-      // Placeholder for RevenueCat restore in future.
+      const info = await restorePurchases();
+      const premium = hasPremiumEntitlement(info);
+      setBool(StorageKeys.isPremium, premium);
+      setLocalPremium(premium);
+      if (premium) {
+        Alert.alert("Success", "Premium restored.");
+      } else {
+        Alert.alert("No active subscription", "No active premium subscription was found.");
+      }
+    } catch {
+      Alert.alert("Error", t("settingsRestoreFailed"));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onManageSubscription = async () => {
+    const url = "https://apps.apple.com/account/subscriptions";
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert("Error", "Unable to open subscription settings.");
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Error", "Unable to open subscription settings.");
     }
   };
 
@@ -180,10 +215,18 @@ export default function PaywallScreen({ navigation }: Props) {
               <Text style={styles.restore}>{t("restore")}</Text>
             </Pressable>
 
+            <View style={{ height: 6 }} />
+
+            <Pressable onPress={onManageSubscription} style={({ pressed }) => [styles.restoreWrap, pressed && { opacity: 0.85 }]}>
+              <Text style={styles.restore}>{t("manageSubscription")}</Text>
+            </Pressable>
+
+            {purchasesUnavailable ? (
+              <Text style={styles.unavailableHint}>{t("purchasesUnavailableExpoGo")}</Text>
+            ) : null}
+
             <Text style={styles.legal}>
-              {t("paywallLegalLine1")}
-              {"\n"}
-              {t("paywallLegalLine2")}
+              Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Payment will be charged to your Apple ID account.
             </Text>
           </>
         )}
@@ -272,6 +315,12 @@ const styles = StyleSheet.create({
 
   restoreWrap: { alignItems: "center" },
   restore: { color: theme.colors.textTertiary, textDecorationLine: "underline" },
+  unavailableHint: {
+    color: theme.colors.textTertiary,
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 10,
+  },
 
   legal: {
     color: theme.colors.textTertiary,
