@@ -6,10 +6,9 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Screen from "../components/Screen";
 import { theme } from "../theme";
-import i18n from "../i18n";
 import { RootStackParamList } from "../navigation/Root";
 import { StorageKeys } from "../storage/keys";
-import { getNumber, getString, getBool, setBool, setString } from "../storage/mmkv";
+import { getNumber, getString, getBool, setBool } from "../storage/mmkv";
 import PaywallModal from "../components/PaywallModal";
 import PrimaryButton from "../components/PrimaryButton";
 import SecondaryButton from "../components/SecondaryButton";
@@ -21,7 +20,7 @@ import {
   saveNotificationPlan,
 } from "../storage/notificationTimes";
 import { todayLocalISODate } from "../utils/date";
-import { formatCurrencyEUR } from "../utils/format";
+import { formatMoney } from "../localization/money";
 import { authenticateWithBiometrics, isBiometricAvailable } from "../security/useAppLock";
 import {
   isMonthlyReportNotificationEnabled,
@@ -34,6 +33,13 @@ import {
   isRevenueCatConfigured,
   restore as restoreRevenueCatPurchases,
 } from "../purchases";
+import {
+  readCurrencyPreference,
+  readLanguagePreference,
+  readResolvedCurrency,
+  readResolvedLanguage,
+} from "../localization/preferences";
+import { getCurrencySymbol } from "../localization/money";
 
 type EditorTarget = { kind: "check" } | { kind: "passive"; index: number } | null;
 
@@ -104,6 +110,29 @@ function formatDateForLanguage(dateISO: string, language: "fr" | "en") {
   }).format(date);
 }
 
+function formatLanguageSummary(
+  t: (key: string, values?: Record<string, unknown>) => string,
+  pref: "auto" | "fr" | "en",
+  resolved: "fr" | "en"
+) {
+  if (pref === "auto") {
+    const resolvedLabel = resolved === "fr" ? t("languageFrench") : t("languageEnglish");
+    return t("settingsAutoResolvedLanguage", { value: resolvedLabel });
+  }
+  return pref === "fr" ? t("languageFrench") : t("languageEnglish");
+}
+
+function formatCurrencySummary(
+  t: (key: string, values?: Record<string, unknown>) => string,
+  pref: "auto" | "EUR" | "GBP" | "USD",
+  resolved: "EUR" | "GBP" | "USD"
+) {
+  if (pref === "auto") {
+    return t("settingsAutoResolvedCurrency", { value: `${resolved} ${getCurrencySymbol(resolved)}` });
+  }
+  return `${pref} ${getCurrencySymbol(pref)}`;
+}
+
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -139,10 +168,13 @@ export default function SettingsScreen() {
   const monthlyReportNotifEnabled = isMonthlyReportNotificationEnabled();
   const lockEnabled = getBool(StorageKeys.securityLockEnabled) ?? false;
   const biometricPreferred = getBool(StorageKeys.securityBiometricPreferred) ?? true;
-  const language =
-    (getString(StorageKeys.language) as "fr" | "en" | null) ??
-    (i18n.language?.startsWith("fr") ? "fr" : "en");
-  const quitDateLabel = formatDateForLanguage(quitDate, language);
+  const languagePref = readLanguagePreference();
+  const resolvedLanguage = readResolvedLanguage() ?? "en";
+  const currencyPref = readCurrencyPreference();
+  const resolvedCurrency = readResolvedCurrency() ?? "EUR";
+  const quitDateLabel = formatDateForLanguage(quitDate, resolvedLanguage);
+  const languageSummary = formatLanguageSummary(t, languagePref, resolvedLanguage);
+  const currencySummary = formatCurrencySummary(t, currencyPref, resolvedCurrency);
 
   const refresh = () => setTick((x) => x + 1);
 
@@ -163,16 +195,6 @@ export default function SettingsScreen() {
     setNotificationPlan(clean);
     saveNotificationPlan(clean);
     await rescheduleIfActive(clean);
-  };
-
-  const setLang = async (lng: "fr" | "en") => {
-    await i18n.changeLanguage(lng);
-    setString(StorageKeys.language, lng);
-    const enabled = getBool(StorageKeys.notificationsEnabled) ?? false;
-    if (enabled && isPremium) {
-      await scheduleMotivationReminders(readNotificationPlan());
-    }
-    refresh();
   };
 
   const openTimePicker = (target: EditorTarget, time: NotificationTime) => {
@@ -352,7 +374,7 @@ export default function SettingsScreen() {
           <Text style={styles.section}>{t("settingsProfile")}</Text>
           <Row label={t("quitDate")} value={quitDateLabel} />
           <Row label={t("cigsPerDay")} value={`${cigsPerDay}`} />
-          <Row label={t("pricePerPack")} value={`${pricePerPack} EUR`} />
+          <Row label={t("pricePerPack")} value={formatMoney(pricePerPack)} />
           <Row label={t("cigsPerPack")} value={`${cigsPerPack}`} />
           <View style={styles.chipsRow}>
             <Chip title={t("settingsEditButton")} onPress={() => navigation.navigate("SettingsEdit")} />
@@ -490,12 +512,21 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.block}>
-          <Text style={styles.section}>{t("language")}</Text>
-          <Row label={t("settingsCurrent")} value={language.toUpperCase()} />
-          <View style={styles.chipsRow}>
-            <Chip title="FR" onPress={() => setLang("fr")} tone={language === "fr" ? "primary" : "default"} />
-            <Chip title="EN" onPress={() => setLang("en")} tone={language === "en" ? "primary" : "default"} />
-          </View>
+          <Text style={styles.section}>{t("settingsLocalization")}</Text>
+          <Pressable style={styles.linkRow} onPress={() => navigation.navigate("LanguageSettings")}>
+            <View>
+              <Text style={styles.linkRowLabel}>{t("settingsLanguage")}</Text>
+              <Text style={styles.linkRowValue}>{languageSummary}</Text>
+            </View>
+            <Text style={styles.linkRowArrow}>{">"}</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => navigation.navigate("CurrencySettings")}>
+            <View>
+              <Text style={styles.linkRowLabel}>{t("settingsCurrency")}</Text>
+              <Text style={styles.linkRowValue}>{currencySummary}</Text>
+            </View>
+            <Text style={styles.linkRowArrow}>{">"}</Text>
+          </Pressable>
         </View>
 
         <View style={styles.block}>
@@ -515,11 +546,11 @@ export default function SettingsScreen() {
           <Text style={styles.section}>{t("settingsData")}</Text>
           <Pressable style={styles.linkRow} onPress={() => navigation.navigate("PrivacyPolicy")}>
             <Text style={styles.linkRowLabel}>{t("settingsPrivacyPolicy")}</Text>
-            <Text style={styles.linkRowArrow}>›</Text>
+            <Text style={styles.linkRowArrow}>{">"}</Text>
           </Pressable>
           <Pressable style={styles.linkRow} onPress={() => navigation.navigate("ResetData")}>
             <Text style={[styles.linkRowLabel, { color: theme.colors.danger }]}>{t("settingsResetAllData")}</Text>
-            <Text style={styles.linkRowArrow}>›</Text>
+            <Text style={styles.linkRowArrow}>{">"}</Text>
           </Pressable>
           <Text style={styles.hint}>{t("settingsClearHint")}</Text>
         </View>
@@ -556,7 +587,7 @@ export default function SettingsScreen() {
         visible={paywallOpen}
         onClose={() => setPaywallOpen(false)}
         onUnlock={unlockPremium}
-        savedAmountLabel={formatCurrencyEUR(0)}
+        savedAmountLabel={formatMoney(0)}
       />
     </Screen>
   );
@@ -736,6 +767,11 @@ const styles = StyleSheet.create({
   linkRowLabel: {
     color: theme.colors.textPrimary,
     fontWeight: "700",
+  },
+  linkRowValue: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    marginTop: 4,
   },
   linkRowArrow: {
     color: theme.colors.textTertiary,

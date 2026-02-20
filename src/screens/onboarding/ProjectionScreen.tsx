@@ -9,7 +9,7 @@ import { RootStackParamList } from "../../navigation/Root";
 import { StorageKeys } from "../../storage/keys";
 import { getNumber, getString } from "../../storage/mmkv";
 import { moneySaved } from "../../utils/calculations";
-import { formatCurrencyEUR } from "../../utils/format";
+import { formatMoney } from "../../localization/money";
 import { todayLocalISODate } from "../../utils/date";
 import OnboardingHeader from "../../components/OnboardingHeader";
 
@@ -24,7 +24,7 @@ export default function ProjectionScreen({ navigation }: Props) {
 
   const days = 365;
   const saved = moneySaved(days, cigsPerDay, cigsPerPack, pricePerPack);
-  const savedLabel = formatCurrencyEUR(saved);
+  const savedLabel = formatMoney(saved);
   const avoided = Math.floor(days * cigsPerDay);
 
   return (

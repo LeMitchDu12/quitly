@@ -10,7 +10,7 @@ import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
 import { getBool, getNumber, getString, setBool } from "../storage/mmkv";
 import { daysSince, cigarettesAvoided, moneySavedFromCigarettes } from "../utils/calculations";
-import { formatCurrencyEUR } from "../utils/format";
+import { formatMoney } from "../localization/money";
 import { readDailyCheckins, totalSmokedSince } from "../storage/checkins";
 import {
   SHIELD_DURATION_SEC,
@@ -83,7 +83,7 @@ export default function QuitlyShieldScreen() {
     return { days, saved };
   }, [statsTick]);
 
-  const savedLabel = formatCurrencyEUR(profile.saved);
+  const savedLabel = formatMoney(profile.saved);
   const stats = useMemo(() => getShieldStatsSnapshot(new Date()), [statsTick]);
 
   const freeUsed = Math.max(0, Math.min(SHIELD_FREE_WEEKLY_LIMIT, stats.thisWeekCount));

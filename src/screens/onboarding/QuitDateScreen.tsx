@@ -11,7 +11,7 @@ import { theme } from "../../theme";
 import { StorageKeys } from "../../storage/keys";
 import { getNumber, setString } from "../../storage/mmkv";
 import { moneySaved } from "../../utils/calculations";
-import { formatCurrencyEUR } from "../../utils/format";
+import { formatMoney } from "../../localization/money";
 import { toLocalISODate } from "../../utils/date";
 
 type Props = NativeStackScreenProps<RootStackParamList, "QuitDate">;
@@ -62,7 +62,7 @@ export default function QuitDateScreen({ navigation }: Props) {
 
   const preview7 = useMemo(() => {
     const saved = moneySaved(7, cigsPerDay, cigsPerPack, pricePerPack);
-    return formatCurrencyEUR(saved);
+    return formatMoney(saved);
   }, [cigsPerDay, cigsPerPack, pricePerPack]);
 
   const onChange = (_: unknown, selected?: Date) => {

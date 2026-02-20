@@ -12,7 +12,7 @@ import { readShieldSessions } from "../shield/shieldStorage";
 import { readDailyCheckins } from "../storage/checkins";
 import { StorageKeys } from "../storage/keys";
 import { getBool, getNumber, getString, setBool } from "../storage/mmkv";
-import { formatCurrencyEUR } from "../utils/format";
+import { formatMoney } from "../localization/money";
 import { generateMonthlyReport } from "../reports/reportGenerator";
 import {
   readDailyStatusMap,
@@ -200,9 +200,9 @@ export default function MonthlyReportScreen() {
               <ReportCard
                 delayMs={80}
                 title={t("monthly_report.money_saved")}
-                value={formatCurrencyEUR(report.totals.moneySavedMonth)}
+                value={formatMoney(report.totals.moneySavedMonth)}
                 subtitle={t("monthly_report.total_small", {
-                  total: formatCurrencyEUR(report.totals.moneySavedTotal),
+                  total: formatMoney(report.totals.moneySavedTotal),
                 })}
               />
               {profile.isPremium ? (
@@ -286,7 +286,7 @@ export default function MonthlyReportScreen() {
         visible={paywallOpen}
         onClose={() => setPaywallOpen(false)}
         onUnlock={unlockPremium}
-        savedAmountLabel={formatCurrencyEUR(report?.totals.moneySavedTotal ?? 0)}
+        savedAmountLabel={formatMoney(report?.totals.moneySavedTotal ?? 0)}
       />
     </Screen>
   );

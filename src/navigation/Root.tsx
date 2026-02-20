@@ -15,6 +15,8 @@ import RelapseSupportScreen from "../screens/RelapseSupportScreen";
 import MonthlyReportScreen from "../screens/MonthlyReportScreen";
 import PrivacyPolicyScreen from "../screens/PrivacyPolicyScreen";
 import ResetDataScreen from "../screens/ResetDataScreen";
+import LanguageSettingsScreen from "../screens/LanguageSettingsScreen";
+import CurrencySettingsScreen from "../screens/CurrencySettingsScreen";
 import { ensureProfileDefaults, isOnboardingComplete } from "../storage/profile";
 import { theme } from "../theme";
 
@@ -34,6 +36,8 @@ export type RootStackParamList = {
   MonthlyReport: undefined;
   PrivacyPolicy: undefined;
   ResetData: undefined;
+  LanguageSettings: undefined;
+  CurrencySettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -66,6 +70,8 @@ export default function RootNavigator() {
       <Stack.Screen name="MonthlyReport" component={MonthlyReportScreen} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       <Stack.Screen name="ResetData" component={ResetDataScreen} />
+      <Stack.Screen name="LanguageSettings" component={LanguageSettingsScreen} />
+      <Stack.Screen name="CurrencySettings" component={CurrencySettingsScreen} />
       <Stack.Screen name="Tabs" component={Tabs} />
     </Stack.Navigator>
   );

@@ -12,7 +12,7 @@ import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
 import { getBool, getNumber, getString, setBool, setString } from "../storage/mmkv";
 import { daysSince, cigarettesAvoided, moneySavedFromCigarettes, timeGainedHours } from "../utils/calculations";
-import { formatCurrencyEUR } from "../utils/format";
+import { formatMoney } from "../localization/money";
 import { todayLocalISODate } from "../utils/date";
 import { DailyCheckin, lastRelapseDate, readDailyCheckins, totalSmokedSince, upsertDailyCheckin } from "../storage/checkins";
 import type { RootStackParamList } from "../navigation/Root";
@@ -159,7 +159,7 @@ export default function HomeScreen() {
     );
   }
 
-  const savedLabel = formatCurrencyEUR(stats.saved);
+  const savedLabel = formatMoney(stats.saved);
   const showDailyCheckin = stats.days > 0 || !!todayCheckin || dailyRelapseMode;
 
   const unlockPremium = () => {

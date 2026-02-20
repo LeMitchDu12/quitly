@@ -2,16 +2,19 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
-import i18n from "./src/i18n";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import RootNavigator from "./src/navigation/Root"; 
 import { theme } from "./src/theme";
-import { getString, hydrateStorage, setBool, setString } from "./src/storage/mmkv";
+import { hydrateStorage, setBool, setString } from "./src/storage/mmkv";
 import { StorageKeys } from "./src/storage/keys";
 import { goToHomeTab, navigationRef } from "./src/navigation";
 import { useAppLock } from "./src/security/useAppLock";
 import AppLockScreen from "./src/security/AppLockScreen";
 import { getPremiumStatusFromStore } from "./src/purchases";
+import { initPreferencesIfNeeded } from "./src/localization/preferences";
+import { applyLanguageFromPrefs } from "./src/localization/appLanguage";
+import { applyCurrencyFromPrefs } from "./src/localization/money";
+import { usePreferencesVersion } from "./src/localization/preferencesStore";
 
 const navTheme = {
   ...DefaultTheme,
@@ -26,6 +29,7 @@ const navTheme = {
 };
 
 export default function App() {
+  usePreferencesVersion();
   const {
     isLocked,
     unlockBiometricFirst,
@@ -41,10 +45,9 @@ export default function App() {
   useEffect(() => {
     hydrateStorage()
       .then(async () => {
-        const savedLanguage = getString(StorageKeys.language);
-        if (savedLanguage === "fr" || savedLanguage === "en") {
-          await i18n.changeLanguage(savedLanguage);
-        }
+        initPreferencesIfNeeded();
+        await applyLanguageFromPrefs();
+        applyCurrencyFromPrefs();
       })
       .catch(() => {
         // App can continue with defaults even if hydration fails.

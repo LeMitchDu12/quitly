@@ -5,6 +5,10 @@ export const StorageKeys = {
   cigsPerPack: "cigsPerPack",
   isPremium: "isPremium", // pour MVP sans RevenueCat
   language: "language",
+  languagePreference: "languagePreference",
+  currencyPreference: "currencyPreference",
+  resolvedLanguage: "resolvedLanguage",
+  resolvedCurrency: "resolvedCurrency",
   onboardingDone: "onboardingDone",
   notificationsEnabled: "notificationsEnabled",
   dailyCheckins: "dailyCheckins",

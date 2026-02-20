@@ -15,7 +15,7 @@ import { getBool, getNumber, getString, setBool } from "../storage/mmkv";
 import { StorageKeys } from "../storage/keys";
 import { cigarettesAvoided, daysSince, moneySavedFromCigarettes } from "../utils/calculations";
 import { totalSmokedSince, readDailyCheckins } from "../storage/checkins";
-import { formatCurrencyEUR } from "../utils/format";
+import { formatMoney } from "../localization/money";
 import { todayLocalISODate } from "../utils/date";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -61,7 +61,7 @@ export default function JournalListScreen() {
     const days = daysSince(quitDate);
     const smoked = totalSmokedSince(readDailyCheckins(), quitDate);
     const avoided = Math.max(0, cigarettesAvoided(days, cigsPerDay) - smoked);
-    return formatCurrencyEUR(moneySavedFromCigarettes(avoided, cigsPerPack, pricePerPack));
+    return formatMoney(moneySavedFromCigarettes(avoided, cigsPerPack, pricePerPack));
   }, []);
 
   return (

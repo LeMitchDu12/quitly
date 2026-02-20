@@ -11,7 +11,7 @@ import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
 import { getBool, getNumber, getString, setBool } from "../storage/mmkv";
 import { cigarettesAvoided, daysSince, moneySaved, moneySavedFromCigarettes } from "../utils/calculations";
-import { formatCurrencyEUR } from "../utils/format";
+import { formatMoney } from "../localization/money";
 import { todayLocalISODate } from "../utils/date";
 import { DailyCheckin, lastRelapseDate, readDailyCheckins, smokedSinceUntil, totalSmokedSince } from "../storage/checkins";
 import type { RootStackParamList } from "../navigation/Root";
@@ -128,7 +128,7 @@ export default function ProgressScreen() {
     { daysAhead: 365, value: moneySaved(days + 365, cigsPerDay, cigsPerPack, pricePerPack) },
   ];
   const maxProjection = Math.max(...projections.map((p) => p.value), 1);
-  const savedLabel = formatCurrencyEUR(totalSaved);
+  const savedLabel = formatMoney(totalSaved);
   const journalPatterns = useMemo(() => analyzeJournalPatterns(journalEntries), [journalEntries]);
 
   const openJournal = () => {
@@ -156,7 +156,7 @@ export default function ProgressScreen() {
   }) => {
     const formatValue =
       unit === "currency"
-        ? (value: number) => formatCurrencyEUR(value)
+        ? (value: number) => formatMoney(value)
         : (value: number) => value.toLocaleString(i18n.language || "fr-FR");
 
     return (
@@ -342,7 +342,7 @@ export default function ProgressScreen() {
         <View style={styles.chartBox}>
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>€ {t("chartTitleSavings")}</Text>
-            <Text style={styles.chartValue}>{formatCurrencyEUR(totalSaved)}</Text>
+            <Text style={styles.chartValue}>{formatMoney(totalSaved)}</Text>
           </View>
           {isPremium ? (
             <>
@@ -409,7 +409,7 @@ export default function ProgressScreen() {
                 return (
                   <View key={projection.daysAhead} style={styles.projectionRow}>
                     <Text style={styles.projectionLabel}>{t("projectionInDays", { days: projection.daysAhead })}</Text>
-                    <Text style={styles.projectionValue}>{formatCurrencyEUR(projection.value)}</Text>
+                    <Text style={styles.projectionValue}>{formatMoney(projection.value)}</Text>
                     <View style={styles.projectionTrack}>
                       <View style={[styles.projectionFill, { width: `${pct}%` }]} />
                     </View>
