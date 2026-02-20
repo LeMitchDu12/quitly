@@ -4,7 +4,6 @@ import DateTimePicker, { type DateTimePickerEvent } from "@react-native-communit
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Screen from "../components/Screen";
-import StatCard from "../components/StatCard";
 import SecondaryButton from "../components/SecondaryButton";
 import PaywallModal from "../components/PaywallModal";
 import { useTranslation } from "react-i18next";
@@ -160,6 +159,9 @@ export default function HomeScreen() {
   }
 
   const savedLabel = formatMoney(stats.saved);
+  const locale = i18n.language || "fr-FR";
+  const avoidedLabel = stats.avoided.toLocaleString(locale);
+  const gainedHoursLabel = `${stats.gainedHours.toLocaleString(locale)}h`;
   const showDailyCheckin = stats.days > 0 || !!todayCheckin || dailyRelapseMode;
 
   const unlockPremium = () => {
@@ -329,10 +331,34 @@ export default function HomeScreen() {
         </Pressable>
 
         {showDailyCheckin ? renderCheckinCard() : null}
-        <Text style={styles.statsTitle}>{t("progress")}</Text>
-        <StatCard icon="€" value={savedLabel} label={t("saved")} />
-        <StatCard icon="🚭" value={`${stats.avoided}`} label={t("cigarettesAvoided")} />
-        <StatCard icon="⏱️" value={`${stats.gainedHours}h`} label={t("timeGained")} />
+        <View style={styles.progressWrap}>
+          <View style={styles.progressHeaderRow}>
+            <Text style={styles.statsTitle}>{t("progress")}</Text>
+            <Pressable style={styles.progressLinkButton} onPress={() => navigation.navigate("Progress")}>
+              <Text style={styles.progressLink}>{">"}</Text>
+            </Pressable>
+          </View>
+
+          <Pressable style={styles.primaryMetricCard} onPress={() => navigation.navigate("Progress")}>
+            <View style={styles.primaryMetricGlow} />
+            <Text style={styles.primaryMetricKicker}>{t("moneySaved")}</Text>
+            <Text style={styles.primaryMetricValue}>{savedLabel}</Text>
+            <Text style={styles.primaryMetricHint}>{t("chartLegendSinceQuit", { days: stats.days })}</Text>
+          </Pressable>
+
+          <View style={styles.metricGrid}>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricIcon}>{"\uD83D\uDEAD"}</Text>
+              <Text style={styles.metricValue}>{avoidedLabel}</Text>
+              <Text style={styles.metricLabel}>{t("cigarettesAvoided")}</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricIcon}>{"\u23F1\uFE0F"}</Text>
+              <Text style={styles.metricValue}>{gainedHoursLabel}</Text>
+              <Text style={styles.metricLabel}>{t("timeGained")}</Text>
+            </View>
+          </View>
+        </View>
       </ScrollView>
 
       <PaywallModal
@@ -436,7 +462,99 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontWeight: "800",
     fontSize: 16,
+  },
+  progressWrap: {
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  progressHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: 6,
     marginBottom: theme.spacing.xs,
+  },
+  progressLinkButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    backgroundColor: theme.colors.elevated,
+  },
+  progressLink: {
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 14,
+    fontWeight: "700",
+  },
+  primaryMetricCard: {
+    position: "relative",
+    overflow: "hidden",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.32)",
+    borderRadius: theme.radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: theme.spacing.xs,
+  },
+  primaryMetricGlow: {
+    position: "absolute",
+    width: 130,
+    height: 130,
+    borderRadius: 999,
+    backgroundColor: "rgba(74,222,128,0.14)",
+    right: -32,
+    top: -42,
+  },
+  primaryMetricKicker: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  primaryMetricValue: {
+    color: theme.colors.textPrimary,
+    marginTop: 6,
+    fontSize: 32,
+    fontWeight: "900",
+  },
+  primaryMetricHint: {
+    color: theme.colors.textTertiary,
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  metricGrid: {
+    flexDirection: "row",
+    gap: theme.spacing.xs,
+  },
+  metricCard: {
+    flex: 1,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: theme.radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  metricIcon: {
+    color: theme.colors.primary,
+    fontSize: 16,
+  },
+  metricValue: {
+    color: theme.colors.textPrimary,
+    fontSize: 22,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  metricLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
   },
   urgeButton: {
     width: "100%",
