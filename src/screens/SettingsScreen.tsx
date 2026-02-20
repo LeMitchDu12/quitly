@@ -93,6 +93,17 @@ function sortTimes(times: NotificationTime[]) {
   return [...times].sort((a, b) => a.hour - b.hour || a.minute - b.minute);
 }
 
+function formatDateForLanguage(dateISO: string, language: "fr" | "en") {
+  const date = new Date(`${dateISO}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateISO;
+  const locale = language === "fr" ? "fr-FR" : "en-US";
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -131,6 +142,7 @@ export default function SettingsScreen() {
   const language =
     (getString(StorageKeys.language) as "fr" | "en" | null) ??
     (i18n.language?.startsWith("fr") ? "fr" : "en");
+  const quitDateLabel = formatDateForLanguage(quitDate, language);
 
   const refresh = () => setTick((x) => x + 1);
 
@@ -338,7 +350,7 @@ export default function SettingsScreen() {
 
         <View style={styles.block}>
           <Text style={styles.section}>{t("settingsProfile")}</Text>
-          <Row label={t("quitDate")} value={quitDate} />
+          <Row label={t("quitDate")} value={quitDateLabel} />
           <Row label={t("cigsPerDay")} value={`${cigsPerDay}`} />
           <Row label={t("pricePerPack")} value={`${pricePerPack} EUR`} />
           <Row label={t("cigsPerPack")} value={`${cigsPerPack}`} />

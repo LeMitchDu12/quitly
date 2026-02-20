@@ -37,6 +37,7 @@ const styles = StyleSheet.create({
   icon: {
     fontSize: 18,
     marginBottom: 6,
+    color: theme.colors.primary,
   },
   value: { color: theme.colors.textPrimary, fontSize: 28, fontWeight: "800" },
   label: { color: theme.colors.textSecondary, fontSize: theme.typography.small.fontSize, marginTop: 4 },
