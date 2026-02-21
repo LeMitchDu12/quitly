@@ -1,6 +1,5 @@
 import React, { useRef, useState } from "react";
 import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView, Linking, AppState } from "react-native";
-import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -48,6 +47,7 @@ import {
   getShieldDurationSecForPlan,
   setShieldDurationSec,
 } from "../shield/shieldDuration";
+import { sanitizeNotificationTime, shiftHour, shiftMinute } from "./settingsTimeUtils";
 
 type EditorTarget = { kind: "check" } | { kind: "passive"; index: number } | null;
 type ShieldDurationOption = (typeof SHIELD_DURATION_OPTIONS_SEC)[number];
@@ -115,28 +115,6 @@ function sortTimes(times: NotificationTime[]) {
   return [...times].sort((a, b) => a.hour - b.hour || a.minute - b.minute);
 }
 
-function sanitizeNotificationTime(time: NotificationTime | null | undefined): NotificationTime {
-  if (!time) return { hour: 9, minute: 0 };
-  const rawHour = Number(time.hour);
-  const rawMinute = Number(time.minute);
-  if (!Number.isFinite(rawHour) || !Number.isFinite(rawMinute)) return { hour: 9, minute: 0 };
-  const hour = Math.max(0, Math.min(23, Math.floor(rawHour)));
-  const minute = Math.max(0, Math.min(59, Math.floor(rawMinute)));
-  return { hour, minute };
-}
-
-function buildPickerDate(time: NotificationTime): Date {
-  const safeTime = sanitizeNotificationTime(time);
-  const readyDate = new Date();
-  readyDate.setHours(safeTime.hour, safeTime.minute, 0, 0);
-  if (Number.isNaN(readyDate.getTime())) {
-    const fallback = new Date();
-    fallback.setHours(9, 0, 0, 0);
-    return fallback;
-  }
-  return readyDate;
-}
-
 function formatDateForLanguage(dateISO: string, language: "fr" | "en") {
   const date = new Date(`${dateISO}T00:00:00`);
   if (Number.isNaN(date.getTime())) return dateISO;
@@ -176,6 +154,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [, setTick] = useState(0);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [pendingPremiumUnlock, setPendingPremiumUnlock] = useState(false);
   const [paywallDismissedReady, setPaywallDismissedReady] = useState(true);
   const [isPremiumState, setIsPremiumState] = useState<boolean>(() => getBool(StorageKeys.isPremium) ?? false);
   const [notificationsEnabledState, setNotificationsEnabledState] = useState<boolean>(
@@ -185,8 +164,6 @@ export default function SettingsScreen() {
   const [timeEditorVisible, setTimeEditorVisible] = useState(false);
   const [editorTarget, setEditorTarget] = useState<EditorTarget>(null);
   const [pendingTime, setPendingTime] = useState<NotificationTime>({ hour: 9, minute: 0 });
-  const [pickerDate, setPickerDate] = useState(new Date());
-  const [timePickerRenderKey, setTimePickerRenderKey] = useState(0);
   const [biometricReady, setBiometricReady] = useState(false);
   const [shieldDurationSec, setShieldDurationSecState] = useState(() =>
     getShieldDurationSecForPlan(getBool(StorageKeys.isPremium) ?? false)
@@ -327,11 +304,8 @@ export default function SettingsScreen() {
   const openTimePicker = (target: EditorTarget, time: NotificationTime) => {
     if (!target || premiumTransitioning || paywallOpen || !paywallDismissedReady || notificationsBusy || !notificationPickerReady) return;
     const safeTime = sanitizeNotificationTime(time);
-    const readyDate = buildPickerDate(safeTime);
-    setPickerDate(readyDate);
     setPendingTime(safeTime);
     setEditorTarget(target);
-    setTimePickerRenderKey((prev) => prev + 1);
     setTimeEditorVisible(true);
   };
 
@@ -364,11 +338,12 @@ export default function SettingsScreen() {
     setTimeEditorVisible(false);
   };
 
-  const handleTimeChange = (_: DateTimePickerEvent, selected?: Date) => {
-    if (!selected) return;
-    if (Number.isNaN(selected.getTime())) return;
-    setPickerDate(selected);
-    setPendingTime({ hour: selected.getHours(), minute: selected.getMinutes() });
+  const shiftPendingHour = (delta: number) => {
+    setPendingTime((prev) => shiftHour(prev, delta));
+  };
+
+  const shiftPendingMinute = (delta: number) => {
+    setPendingTime((prev) => shiftMinute(prev, delta));
   };
 
   const confirmTimeChange = async () => {
@@ -498,7 +473,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const unlockPremium = () => {
+  const applyPremiumUnlockedState = () => {
     setBool(StorageKeys.isPremium, true);
     setIsPremiumState(true);
     const notifPref = getBool(StorageKeys.notificationsEnabled) ?? false;
@@ -521,7 +496,16 @@ export default function SettingsScreen() {
       notificationPickerReadyTimerRef.current = null;
     }, 700);
     refresh();
-    setPaywallOpen(false);
+  };
+
+  const unlockPremium = () => {
+    // Defer premium state mutation until paywall modal is fully dismissed.
+    if (paywallOpen) {
+      setPendingPremiumUnlock(true);
+      setPaywallOpen(false);
+      return;
+    }
+    applyPremiumUnlockedState();
   };
 
   const notifLabel = notificationsEnabled ? t("settingsEnabled") : t("settingsDisabled");
@@ -834,21 +818,27 @@ export default function SettingsScreen() {
           <View style={styles.timeEditor}>
             <Text style={styles.timeEditorTitle}>{t("notificationsEditTitle")}</Text>
             <View style={styles.editorPickerWrap}>
-              <DateTimePicker
-                key={`time-picker-${timePickerRenderKey}`}
-                value={pickerDate}                
-                mode="time"
-                is24Hour
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={handleTimeChange}
-                {...(Platform.OS === "ios"
-                  ? {
-                      themeVariant: "dark" as const,
-                      textColor: "#FFFFFF",
-                    }
-                  : {})}
-                style={styles.editorPicker}
-              />
+              <View style={styles.timeAdjustRow}>
+                <View style={styles.timeAdjustCol}>
+                  <Pressable style={styles.timeAdjustButton} onPress={() => shiftPendingHour(1)}>
+                    <Text style={styles.timeAdjustButtonText}>+</Text>
+                  </Pressable>
+                  <Text style={styles.timeAdjustValue}>{String(pendingTime.hour).padStart(2, "0")}</Text>
+                  <Pressable style={styles.timeAdjustButton} onPress={() => shiftPendingHour(-1)}>
+                    <Text style={styles.timeAdjustButtonText}>-</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.timeAdjustSeparator}>:</Text>
+                <View style={styles.timeAdjustCol}>
+                  <Pressable style={styles.timeAdjustButton} onPress={() => shiftPendingMinute(1)}>
+                    <Text style={styles.timeAdjustButtonText}>+</Text>
+                  </Pressable>
+                  <Text style={styles.timeAdjustValue}>{String(pendingTime.minute).padStart(2, "0")}</Text>
+                  <Pressable style={styles.timeAdjustButton} onPress={() => shiftPendingMinute(-1)}>
+                    <Text style={styles.timeAdjustButtonText}>-</Text>
+                  </Pressable>
+                </View>
+              </View>
             </View>
             <View style={styles.editorActions}>
               <View style={styles.editorButtonWrapper}>
@@ -910,8 +900,17 @@ export default function SettingsScreen() {
 
       <PaywallModal
         visible={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-        onDismiss={() => setPaywallDismissedReady(true)}
+        onClose={() => {
+          setPendingPremiumUnlock(false);
+          setPaywallOpen(false);
+        }}
+        onDismiss={() => {
+          setPaywallDismissedReady(true);
+          if (pendingPremiumUnlock) {
+            setPendingPremiumUnlock(false);
+            applyPremiumUnlockedState();
+          }
+        }}
         onUnlock={unlockPremium}
         savedAmountLabel={formatMoney(0)}
       />
@@ -1069,9 +1068,45 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.divider,
     paddingVertical: theme.spacing.sm,
   },
-  editorPicker: {
-    alignSelf: "center",
-    paddingHorizontal: theme.spacing.sm,
+  timeAdjustRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing.sm,
+    paddingVertical: 2,
+  },
+  timeAdjustCol: {
+    alignItems: "center",
+    minWidth: 60,
+  },
+  timeAdjustButton: {
+    width: 36,
+    height: 30,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timeAdjustButtonText: {
+    color: theme.colors.textPrimary,
+    fontSize: 16,
+    fontWeight: "800",
+    lineHeight: 18,
+  },
+  timeAdjustValue: {
+    color: theme.colors.textPrimary,
+    fontSize: 22,
+    fontWeight: "900",
+    marginVertical: 6,
+    minWidth: 34,
+    textAlign: "center",
+  },
+  timeAdjustSeparator: {
+    color: theme.colors.textPrimary,
+    fontSize: 24,
+    fontWeight: "900",
   },
   editorActions: {
     flexDirection: "row",
