@@ -15,13 +15,13 @@ import { formatMoney } from "../localization/money";
 import { readDailyCheckins, totalSmokedSince } from "../storage/checkins";
 import { playShieldSound } from "../shield/shieldAudio";
 import {
-  SHIELD_DURATION_SEC,
   SHIELD_FREE_WEEKLY_LIMIT,
   canStartShieldSession,
   consumeFreeShieldWeeklySlot,
   recordShieldSession,
   type ShieldSession,
 } from "../shield/shieldStorage";
+import { formatShieldDurationMinutes, getShieldDurationSecForPlan } from "../shield/shieldDuration";
 import { formatHourRange, getShieldStatsSnapshot } from "../shield/shieldStats";
 import type { RootStackParamList } from "../navigation/Root";
 
@@ -29,7 +29,6 @@ type ShieldView = "session" | "stats";
 type SessionState = "idle" | "running" | "completed";
 
 const SHIELD_VARIANTS: ShieldVariant[] = [
-  "default",
   "morphing",
   "flow",
   "bubbles",
@@ -43,7 +42,7 @@ const SHIELD_VARIANTS: ShieldVariant[] = [
 
 function pickRandomVariant(): ShieldVariant {
   const idx = Math.floor(Math.random() * SHIELD_VARIANTS.length);
-  return SHIELD_VARIANTS[idx] ?? "default";
+  return SHIELD_VARIANTS[idx] ?? "morphing";
 }
 
 function formatSessionDate(iso: string, locale: string) {
@@ -64,10 +63,16 @@ export default function QuitlyShieldScreen() {
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const [view, setView] = useState<ShieldView>("session");
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [configuredDurationSec, setConfiguredDurationSec] = useState(() =>
+    getShieldDurationSecForPlan(getBool(StorageKeys.isPremium) ?? false)
+  );
+  const [sessionDurationSec, setSessionDurationSec] = useState(() =>
+    getShieldDurationSecForPlan(getBool(StorageKeys.isPremium) ?? false)
+  );
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [pendingJournalAfterUnlock, setPendingJournalAfterUnlock] = useState(false);
   const [statsTick, setStatsTick] = useState(0);
-  const [activeVariant, setActiveVariant] = useState<ShieldVariant>("default");
+  const [activeVariant, setActiveVariant] = useState<ShieldVariant>("morphing");
 
   const startedAtMsRef = useRef<number | null>(null);
   const completionHandledRef = useRef(false);
@@ -81,9 +86,15 @@ export default function QuitlyShieldScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setIsPremium(getBool(StorageKeys.isPremium) ?? false);
+      const premium = getBool(StorageKeys.isPremium) ?? false;
+      setIsPremium(premium);
+      const nextDuration = getShieldDurationSecForPlan(premium);
+      setConfiguredDurationSec(nextDuration);
+      if (sessionState !== "running") {
+        setSessionDurationSec(nextDuration);
+      }
       setStatsTick((x) => x + 1);
-    }, [])
+    }, [sessionState])
   );
 
   const profile = useMemo(() => {
@@ -103,18 +114,20 @@ export default function QuitlyShieldScreen() {
   const stats = useMemo(() => getShieldStatsSnapshot(new Date()), [statsTick]);
 
   const freeUsed = Math.max(0, Math.min(SHIELD_FREE_WEEKLY_LIMIT, stats.thisWeekCount));
-  const shieldVariant: ShieldVariant = !isPremium ? "default" : activeVariant;
-  const centerLabelInCircle = shieldVariant === "default" || shieldVariant === "defaut" || shieldVariant === "morphing";
+  const activeDurationSec = sessionState === "running" ? sessionDurationSec : configuredDurationSec;
+  const shieldVariant: ShieldVariant = !isPremium ? "morphing" : activeVariant;
+  const centerLabelInCircle = shieldVariant === "morphing";
   const useFlowInternalTimer = shieldVariant === "flow";
-  const progress = Math.max(0, Math.min(1, elapsedSec / SHIELD_DURATION_SEC));
-  const secondsLeft = Math.max(0, SHIELD_DURATION_SEC - elapsedSec);
-  const phaseIndex = elapsedSec < 60 ? 1 : elapsedSec < 120 ? 2 : 3;
+  const progress = Math.max(0, Math.min(1, elapsedSec / activeDurationSec));
+  const secondsLeft = Math.max(0, activeDurationSec - elapsedSec);
+  const elapsedRatio = Math.max(0, Math.min(1, elapsedSec / activeDurationSec));
+  const phaseIndex = elapsedRatio < 1 / 3 ? 1 : elapsedRatio < 2 / 3 ? 2 : 3;
   const phaseMessageIndex =
-    elapsedSec < 30 ? 1 :
-    elapsedSec < 60 ? 2 :
-    elapsedSec < 90 ? 3 :
-    elapsedSec < 120 ? 4 :
-    elapsedSec < 150 ? 5 :
+    elapsedRatio < 1 / 6 ? 1 :
+    elapsedRatio < 2 / 6 ? 2 :
+    elapsedRatio < 3 / 6 ? 3 :
+    elapsedRatio < 4 / 6 ? 4 :
+    elapsedRatio < 5 / 6 ? 5 :
     6;
 
   const phaseText = useMemo(() => {
@@ -264,9 +277,9 @@ export default function QuitlyShieldScreen() {
       const updateElapsed = () => {
         const startedAtMs = startedAtMsRef.current;
         if (startedAtMs == null) return;
-        const sec = Math.min(SHIELD_DURATION_SEC, Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)));
+        const sec = Math.min(sessionDurationSec, Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)));
         setElapsedSec(sec);
-        if (sec >= SHIELD_DURATION_SEC) completeSession();
+        if (sec >= sessionDurationSec) completeSession();
       };
 
       updateElapsed();
@@ -285,7 +298,7 @@ export default function QuitlyShieldScreen() {
         clearInterval(interval);
         appSub.remove();
       };
-    }, [sessionState, completeSession, stopShieldAudio])
+    }, [sessionState, completeSession, stopShieldAudio, sessionDurationSec])
   );
 
   useEffect(() => {
@@ -304,10 +317,13 @@ export default function QuitlyShieldScreen() {
     }
 
     if (!isPremium) consumeFreeShieldWeeklySlot(new Date());
+    const durationForSession = getShieldDurationSecForPlan(isPremium);
 
-    const pickedVariant: ShieldVariant = !isPremium ? "default" : pickRandomVariant();
+    const pickedVariant: ShieldVariant = !isPremium ? "morphing" : pickRandomVariant();
 
     setActiveVariant(pickedVariant);
+    setConfiguredDurationSec(durationForSession);
+    setSessionDurationSec(durationForSession);
     startedAtMsRef.current = Date.now();
     completionHandledRef.current = false;
     setElapsedSec(0);
@@ -335,6 +351,7 @@ export default function QuitlyShieldScreen() {
   const closeCompleted = () => {
     setSessionState("idle");
     setElapsedSec(0);
+    setSessionDurationSec(configuredDurationSec);
     startedAtMsRef.current = null;
     completionHandledRef.current = false;
     navigation.goBack();
@@ -421,7 +438,9 @@ export default function QuitlyShieldScreen() {
     return (
       <View style={styles.idleWrap}>
         <Text style={styles.title}>{t("shieldTitle")}</Text>
-        <Text style={styles.subtitle}>{t("shieldSubtitle")}</Text>
+        <Text style={styles.subtitle}>
+          {t("shieldSubtitle", { duration: formatShieldDurationMinutes(configuredDurationSec) })}
+        </Text>
         {!isPremium && (
           <>
             <Text style={styles.limitText}>

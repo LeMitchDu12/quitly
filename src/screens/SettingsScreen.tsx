@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView, Linking } from "react-native";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useTranslation } from "react-i18next";
@@ -41,8 +41,23 @@ import {
   readResolvedLanguage,
 } from "../localization/preferences";
 import { getCurrencySymbol } from "../localization/money";
+import {
+  SHIELD_DURATION_OPTIONS_SEC,
+  canUseShieldDuration,
+  formatShieldDurationMinutes,
+  getShieldDurationSecForPlan,
+  setShieldDurationSec,
+} from "../shield/shieldDuration";
 
 type EditorTarget = { kind: "check" } | { kind: "passive"; index: number } | null;
+type ShieldDurationOption = (typeof SHIELD_DURATION_OPTIONS_SEC)[number];
+
+const SHIELD_DURATION_UI_OPTIONS: Array<{ value: ShieldDurationOption; labelKey: string; badgeKey?: string }> = [
+  { value: 60, labelKey: "settingsShieldDuration1Min" },
+  { value: 120, labelKey: "settingsShieldDuration2Min" },
+  { value: 180, labelKey: "settingsShieldDuration3Min", badgeKey: "settingsShieldRecommended" },
+  { value: 300, labelKey: "settingsShieldDuration5Min", badgeKey: "settingsShieldDeep" },
+];
 
 function Chip({
   title,
@@ -145,11 +160,19 @@ export default function SettingsScreen() {
   const [pendingTime, setPendingTime] = useState<NotificationTime>({ hour: 9, minute: 0 });
   const [pickerDate, setPickerDate] = useState(new Date());
   const [biometricReady, setBiometricReady] = useState(false);
+  const [shieldDurationSec, setShieldDurationSecState] = useState(() =>
+    getShieldDurationSecForPlan(getBool(StorageKeys.isPremium) ?? false)
+  );
+  const [shieldDurationPickerVisible, setShieldDurationPickerVisible] = useState(false);
+  const [shieldToastVisible, setShieldToastVisible] = useState(false);
+  const shieldToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
       setTick((x) => x + 1);
       setNotificationPlan(readNotificationPlan());
+      const premium = getBool(StorageKeys.isPremium) ?? false;
+      setShieldDurationSecState(getShieldDurationSecForPlan(premium));
       isBiometricAvailable()
         .then(setBiometricReady)
         .catch(() => setBiometricReady(false));
@@ -179,6 +202,26 @@ export default function SettingsScreen() {
   const currencySummary = formatCurrencySummary(t, currencyPref, resolvedCurrency);
 
   const refresh = () => setTick((x) => x + 1);
+  const currentShieldDurationLabel = formatShieldDurationMinutes(shieldDurationSec);
+
+  React.useEffect(() => {
+    return () => {
+      if (shieldToastTimerRef.current) {
+        clearTimeout(shieldToastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showShieldDurationToast = () => {
+    if (shieldToastTimerRef.current) {
+      clearTimeout(shieldToastTimerRef.current);
+    }
+    setShieldToastVisible(true);
+    shieldToastTimerRef.current = setTimeout(() => {
+      setShieldToastVisible(false);
+      shieldToastTimerRef.current = null;
+    }, 1300);
+  };
 
   const rescheduleIfActive = async (plan: NotificationPlan) => {
     if (!notificationsEnabled || !isPremium) return;
@@ -376,6 +419,39 @@ export default function SettingsScreen() {
     refresh();
   };
 
+  const onSelectShieldDuration = (value: ShieldDurationOption) => {
+    if (!isPremium) {
+      setShieldDurationPickerVisible(false);
+      setPaywallOpen(true);
+      return;
+    }
+    if (value === shieldDurationSec) {
+      setShieldDurationPickerVisible(false);
+      return;
+    }
+    if (!canUseShieldDuration(value, isPremium)) {
+      if (!isPremium) {
+        setShieldDurationPickerVisible(false);
+        setPaywallOpen(true);
+        return;
+      }
+      Alert.alert(t("settingsShieldDurationPremiumTitle"), t("settingsShieldDurationPremiumBody"));
+      return;
+    }
+    setShieldDurationSec(value);
+    setShieldDurationSecState(value);
+    showShieldDurationToast();
+  };
+
+  /*
+    QA checklist (shield duration settings):
+    - Open Settings > Shield and verify "Current duration: X min" matches storage.
+    - Change duration to each option and verify immediate save + toast appears.
+    - Restart app and verify last selected duration is kept.
+    - Start a Shield session, change duration in Settings, then confirm active session keeps original duration.
+    - Start next Shield session and confirm it uses the newly selected duration.
+  */
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
@@ -481,6 +557,31 @@ export default function SettingsScreen() {
               </View>
             </View>
           )}
+        </View>
+
+        <View style={styles.block}>
+          <Text style={styles.section}>{t("settingsShieldTitle")}</Text>
+          <Pressable
+            style={styles.linkRow}
+            onPress={() => {
+              if (!isPremium) {
+                setPaywallOpen(true);
+                return;
+              }
+              setShieldDurationPickerVisible(true);
+            }}
+          >
+            <View style={{ flex: 1, paddingRight: theme.spacing.sm }}>
+              <Text style={styles.linkRowLabel}>{t("settingsShieldDurationLabel")}</Text>
+              <Text style={styles.linkRowValue}>
+                {isPremium ? t("settingsShieldDurationSubtitle") : t("settingsShieldDurationPremiumOnly")}
+              </Text>
+              <Text style={styles.currentShieldDurationValue}>
+                {t("settingsShieldCurrentDuration", { value: currentShieldDurationLabel })}
+              </Text>
+            </View>
+            <Text style={styles.linkRowArrow}>{">"}</Text>
+          </Pressable>
         </View>
 
         <View style={styles.block}>
@@ -621,6 +722,52 @@ export default function SettingsScreen() {
           </View>
         </View>
       )}
+
+      {shieldDurationPickerVisible && (
+        <View style={styles.timeEditorOverlay}>
+          <View style={styles.timeEditor}>
+            <Text style={styles.timeEditorTitle}>{t("settingsShieldDurationLabel")}</Text>
+            <Text style={styles.hint}>{t("settingsShieldDurationSubtitle")}</Text>
+            <View style={styles.shieldDurationList}>
+              {SHIELD_DURATION_UI_OPTIONS.map((option) => {
+                const selected = shieldDurationSec === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[styles.shieldDurationOption, selected && styles.shieldDurationOptionSelected]}
+                    onPress={() => onSelectShieldDuration(option.value)}
+                  >
+                    <View style={styles.shieldDurationOptionLabelWrap}>
+                      <Text style={styles.shieldDurationOptionLabel}>{t(option.labelKey)}</Text>
+                      {option.badgeKey ? (
+                        <View style={styles.shieldBadge}>
+                          <Text style={styles.shieldBadgeText}>{t(option.badgeKey)}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <View style={[styles.shieldRadio, selected && styles.shieldRadioSelected]}>
+                      {selected ? <Text style={styles.shieldRadioCheck}>✓</Text> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.editorActions}>
+              <View style={styles.editorButtonWrapper}>
+                <SecondaryButton title={t("settingsDone")} onPress={() => setShieldDurationPickerVisible(false)} />
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {shieldToastVisible ? (
+        <View style={styles.toastWrap} pointerEvents="none">
+          <View style={styles.toast}>
+            <Text style={styles.toastText}>{t("settingsShieldDurationUpdated")}</Text>
+          </View>
+        </View>
+      ) : null}
 
       <PaywallModal
         visible={paywallOpen}
@@ -812,9 +959,96 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+  currentShieldDurationValue: {
+    marginTop: 8,
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
   linkRowArrow: {
     color: theme.colors.textTertiary,
     fontSize: 18,
     lineHeight: 18,
+  },
+  shieldDurationList: {
+    marginTop: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  shieldDurationOption: {
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    borderRadius: theme.radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: theme.colors.surface,
+  },
+  shieldDurationOptionSelected: {
+    borderColor: "rgba(74,222,128,0.6)",
+    backgroundColor: "rgba(74,222,128,0.08)",
+  },
+  shieldDurationOptionLabelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  shieldDurationOptionLabel: {
+    color: theme.colors.textPrimary,
+    fontWeight: "700",
+  },
+  shieldBadge: {
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.6)",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: "rgba(74,222,128,0.15)",
+  },
+  shieldBadgeText: {
+    color: theme.colors.primary,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  shieldRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.elevated,
+  },
+  shieldRadioSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: "rgba(74,222,128,0.18)",
+  },
+  shieldRadioCheck: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: "900",
+    lineHeight: 13,
+  },
+  toastWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: theme.spacing.lg,
+    alignItems: "center",
+  },
+  toast: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: "rgba(15,17,21,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.36)",
+  },
+  toastText: {
+    color: theme.colors.textPrimary,
+    fontWeight: "700",
+    fontSize: 12,
   },
 });

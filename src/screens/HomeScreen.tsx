@@ -15,6 +15,7 @@ import { formatMoney } from "../localization/money";
 import { todayLocalISODate } from "../utils/date";
 import { DailyCheckin, lastRelapseDate, readDailyCheckins, totalSmokedSince, upsertDailyCheckin } from "../storage/checkins";
 import type { RootStackParamList } from "../navigation/Root";
+import { formatShieldDurationMinutes, getShieldDurationSecForPlan } from "../shield/shieldDuration";
 
 function formatDate(dateISO: string, locale: string) {
   const d = new Date(`${dateISO}T00:00:00`);
@@ -176,6 +177,7 @@ export default function HomeScreen() {
   const avoidedLabel = stats.avoided.toLocaleString(locale);
   const gainedHoursLabel = `${stats.gainedHours.toLocaleString(locale)}h`;
   const showDailyCheckin = stats.days > 0 || !!todayCheckin || dailyRelapseMode;
+  const shieldDurationLabel = formatShieldDurationMinutes(getShieldDurationSecForPlan(profile.isPremium));
 
   const unlockPremium = () => {
     setBool(StorageKeys.isPremium, true);
@@ -316,8 +318,12 @@ export default function HomeScreen() {
         <View style={styles.hero}>
           <View style={styles.heroGlowA} />
           <View style={styles.heroGlowB} />
-          <Text style={styles.heroNumber}>{stats.days}</Text>
-          <Text style={styles.heroLabel}>{t("daysSmokeFree")}</Text>
+          {stats.days === 0 ? (
+            <Text style={styles.heroFirstDay}>{t("homeHeroFirstDay")}</Text>
+          ) : (
+            <Text style={styles.heroNumber}>{stats.days}</Text>
+          )}
+          <Text style={styles.heroLabel}>{stats.days === 0 ? t("homeSmokeFreeShort") : t("daysSmokeFree")}</Text>
           <View style={styles.heroDivider} />
           <Text style={styles.heroSub}>
             {stats.days === 0
@@ -341,7 +347,7 @@ export default function HomeScreen() {
 
         <Pressable style={styles.urgeButton} onPress={() => navigation.navigate("QuitlyShield")}>
           <Text style={styles.urgeButtonText}>{t("shieldQuickCta")}</Text>
-          <Text style={styles.urgeButtonHint}>{t("shieldQuickHint")}</Text>
+          <Text style={styles.urgeButtonHint}>{t("shieldQuickHint", { duration: shieldDurationLabel })}</Text>
         </Pressable>
 
         {showDailyCheckin ? renderCheckinCard() : null}
@@ -445,6 +451,13 @@ const styles = StyleSheet.create({
     right: -40,
   },
   heroNumber: { color: theme.colors.textPrimary, fontSize: 64, fontWeight: "900" },
+  heroFirstDay: {
+    color: theme.colors.textPrimary,
+    fontSize: 28,
+    fontWeight: "900",
+    textAlign: "center",
+    paddingHorizontal: 10,
+  },
   heroLabel: { color: theme.colors.textSecondary, marginTop: 6, fontSize: 16, fontWeight: "600" },
   heroDivider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 16 },
   heroSub: { color: theme.colors.textTertiary, textAlign: "center" },

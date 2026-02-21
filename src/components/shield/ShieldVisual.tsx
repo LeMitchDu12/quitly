@@ -2,11 +2,7 @@
 import { Animated, Easing, Platform, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Ellipse } from "react-native-svg";
 import { theme } from "../../theme";
-import ShieldRing from "./ShieldRing";
-
 export type ShieldVariant =
-  | "default"
-  | "defaut"
   | "morphing"
   | "glass"
   | "tension"
@@ -1820,9 +1816,8 @@ function FlowGaugeVisual({ progress, secondsLeft: _secondsLeft, animate = true }
 }
 
 export default function ShieldVisual(props: ShieldVisualProps) {
-  const variant = props.variant ?? "default";
-  const normalized = variant === "defaut" ? "default" : variant;
-  const phase = props.phase;
+  const variant = props.variant ?? "morphing";
+  const normalized = variant;
 
   const glassEnabledShadow = useMemo(
     () => (Platform.OS === "ios" ? styles.glassShadowIOS : styles.glassShadowAndroid),
@@ -1846,18 +1841,7 @@ export default function ShieldVisual(props: ShieldVisualProps) {
   if (normalized === "geoV2") return <GeometricVisualV2 {...props} />;
   if (normalized === "geoV3") return <GeometricVisualV3 {...props} />;
   if (normalized === "geoV4") return <GeometricVisualV4 {...props} />;
-
-  return (
-    <ShieldRing
-      progress={props.progress}
-      secondsLeft={props.secondsLeft}
-      phase={phase}
-      beatEnabled={!!props.premiumFx}
-      size={props.size}
-      showCenterLabel={props.showCenterLabel}
-      animate={props.animate}
-    />
-  );
+  return <MorphingVisual {...props} />;
 }
 
 const styles = StyleSheet.create({
