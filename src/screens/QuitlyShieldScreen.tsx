@@ -8,7 +8,7 @@ import ShieldVisual, { type ShieldVariant } from "../components/shield/ShieldVis
 import ShieldPaywallModal from "../components/shield/ShieldPaywallModal";
 import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
-import { getBool, getNumber, getString, setBool } from "../storage/mmkv";
+import { getBool, getNumber, getString, setBool, setNumber } from "../storage/mmkv";
 import { SHIELD_SOUND_ENABLED } from "../features/featureFlags";
 import { daysSince, cigarettesAvoided, moneySavedFromCigarettes } from "../utils/calculations";
 import { formatMoney } from "../localization/money";
@@ -21,9 +21,15 @@ import {
   recordShieldSession,
   type ShieldSession,
 } from "../shield/shieldStorage";
-import { formatShieldDurationMinutes, getShieldDurationSecForPlan } from "../shield/shieldDuration";
+import {
+  formatShieldDurationMinutes,
+  getShieldDurationSecForPlan,
+  SHIELD_DURATION_OPTIONS_SEC,
+  type ShieldDurationSec,
+} from "../shield/shieldDuration";
 import { formatHourRange, getShieldStatsSnapshot } from "../shield/shieldStats";
 import type { RootStackParamList } from "../navigation/Root";
+import { MOTION_DURATION, easeOutCubic, useReducedMotion } from "../animations";
 
 type ShieldView = "session" | "stats";
 type SessionState = "idle" | "running" | "completed";
@@ -62,7 +68,7 @@ export default function QuitlyShieldScreen() {
   const [isPremium, setIsPremium] = useState<boolean>(getBool(StorageKeys.isPremium) ?? false);
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const [view, setView] = useState<ShieldView>("session");
-  const [elapsedSec, setElapsedSec] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [configuredDurationSec, setConfiguredDurationSec] = useState(() =>
     getShieldDurationSecForPlan(getBool(StorageKeys.isPremium) ?? false)
   );
@@ -73,6 +79,7 @@ export default function QuitlyShieldScreen() {
   const [pendingJournalAfterUnlock, setPendingJournalAfterUnlock] = useState(false);
   const [statsTick, setStatsTick] = useState(0);
   const [activeVariant, setActiveVariant] = useState<ShieldVariant>("morphing");
+  const reduceMotion = useReducedMotion();
 
   const startedAtMsRef = useRef<number | null>(null);
   const completionHandledRef = useRef(false);
@@ -80,9 +87,20 @@ export default function QuitlyShieldScreen() {
   const phaseFade = useRef(new Animated.Value(1)).current;
   const phaseScale = useRef(new Animated.Value(1)).current;
   const sparkOpacity = useRef(new Animated.Value(0)).current;
+  const breath = useRef(new Animated.Value(0)).current;
   const audioStopRef = useRef<(() => Promise<void>) | null>(null);
   const audioStartInFlightRef = useRef(false);
   const audioRequestIdRef = useRef(0);
+
+  const persistRunningSession = useCallback((startAtMs: number, durationSec: number) => {
+    setNumber(StorageKeys.shieldActiveStartAtMs, startAtMs);
+    setNumber(StorageKeys.shieldActiveDurationSec, durationSec);
+  }, []);
+
+  const clearPersistedRunningSession = useCallback(() => {
+    setNumber(StorageKeys.shieldActiveStartAtMs, 0);
+    setNumber(StorageKeys.shieldActiveDurationSec, 0);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -92,9 +110,29 @@ export default function QuitlyShieldScreen() {
       setConfiguredDurationSec(nextDuration);
       if (sessionState !== "running") {
         setSessionDurationSec(nextDuration);
+        const storedStartAtMs = Math.floor(getNumber(StorageKeys.shieldActiveStartAtMs) ?? 0);
+        const storedDurationSec = Math.floor(getNumber(StorageKeys.shieldActiveDurationSec) ?? 0);
+        if (storedStartAtMs > 0 && storedDurationSec > 0) {
+          const restoredDuration: ShieldDurationSec = SHIELD_DURATION_OPTIONS_SEC.includes(
+            storedDurationSec as ShieldDurationSec
+          )
+            ? (storedDurationSec as ShieldDurationSec)
+            : nextDuration;
+          const elapsed = Math.max(0, Date.now() - storedStartAtMs);
+          const maxMs = restoredDuration * 1000;
+          if (elapsed >= maxMs) {
+            clearPersistedRunningSession();
+          } else {
+            startedAtMsRef.current = storedStartAtMs;
+            completionHandledRef.current = false;
+            setSessionDurationSec(restoredDuration);
+            setElapsedMs(elapsed);
+            setSessionState("running");
+          }
+        }
       }
       setStatsTick((x) => x + 1);
-    }, [sessionState])
+    }, [clearPersistedRunningSession, sessionState])
   );
 
   const profile = useMemo(() => {
@@ -118,9 +156,10 @@ export default function QuitlyShieldScreen() {
   const shieldVariant: ShieldVariant = !isPremium ? "morphing" : activeVariant;
   const centerLabelInCircle = shieldVariant === "morphing";
   const useFlowInternalTimer = shieldVariant === "flow";
-  const progress = Math.max(0, Math.min(1, elapsedSec / activeDurationSec));
+  const elapsedSec = Math.floor(elapsedMs / 1000);
+  const progress = Math.max(0, Math.min(1, elapsedMs / (activeDurationSec * 1000)));
   const secondsLeft = Math.max(0, activeDurationSec - elapsedSec);
-  const elapsedRatio = Math.max(0, Math.min(1, elapsedSec / activeDurationSec));
+  const elapsedRatio = Math.max(0, Math.min(1, elapsedMs / (activeDurationSec * 1000)));
   const phaseIndex = elapsedRatio < 1 / 3 ? 1 : elapsedRatio < 2 / 3 ? 2 : 3;
   const phaseMessageIndex =
     elapsedRatio < 1 / 6 ? 1 :
@@ -146,6 +185,14 @@ export default function QuitlyShieldScreen() {
     if (phaseMessageIndex === 5) return "✨";
     return "🏆";
   }, [phaseMessageIndex]);
+  const breathScale = breath.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.06],
+  });
+  const breathOpacity = breath.interpolate({
+    inputRange: [0, 1],
+    outputRange: reduceMotion ? [0.12, 0.16] : [0.1, 0.22],
+  });
 
   useEffect(() => {
     if (sessionState !== "running") {
@@ -154,6 +201,12 @@ export default function QuitlyShieldScreen() {
     }
     if (phaseIndex === lastPhaseRef.current) return;
     lastPhaseRef.current = phaseIndex;
+    if (reduceMotion) {
+      phaseFade.setValue(1);
+      phaseScale.setValue(1);
+      sparkOpacity.setValue(0);
+      return;
+    }
 
     Animated.parallel([
       Animated.sequence([
@@ -199,7 +252,7 @@ export default function QuitlyShieldScreen() {
         }),
       ]),
     ]).start();
-  }, [phaseIndex, phaseFade, phaseScale, sessionState, sparkOpacity]);
+  }, [phaseIndex, phaseFade, phaseScale, reduceMotion, sessionState, sparkOpacity]);
 
   const refreshStats = () => setStatsTick((x) => x + 1);
 
@@ -243,6 +296,7 @@ export default function QuitlyShieldScreen() {
     if (completionHandledRef.current) return;
     completionHandledRef.current = true;
     void stopShieldAudio();
+    clearPersistedRunningSession();
     const startedAtMs = startedAtMsRef.current;
     if (startedAtMs == null) return;
     recordShieldSession({
@@ -251,11 +305,13 @@ export default function QuitlyShieldScreen() {
       completed: true,
     });
     setSessionState("completed");
+    setElapsedMs(sessionDurationSec * 1000);
     refreshStats();
-  }, [stopShieldAudio]);
+  }, [clearPersistedRunningSession, sessionDurationSec, stopShieldAudio]);
 
   const stopSessionEarly = useCallback(() => {
     void stopShieldAudio();
+    clearPersistedRunningSession();
     const startedAtMs = startedAtMsRef.current;
     if (startedAtMs == null) return;
     recordShieldSession({
@@ -264,11 +320,11 @@ export default function QuitlyShieldScreen() {
       completed: false,
     });
     setSessionState("idle");
-    setElapsedSec(0);
+    setElapsedMs(0);
     startedAtMsRef.current = null;
     completionHandledRef.current = false;
     refreshStats();
-  }, [stopShieldAudio]);
+  }, [clearPersistedRunningSession, stopShieldAudio]);
 
   useFocusEffect(
     useCallback(() => {
@@ -277,13 +333,13 @@ export default function QuitlyShieldScreen() {
       const updateElapsed = () => {
         const startedAtMs = startedAtMsRef.current;
         if (startedAtMs == null) return;
-        const sec = Math.min(sessionDurationSec, Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)));
-        setElapsedSec(sec);
-        if (sec >= sessionDurationSec) completeSession();
+        const elapsed = Math.min(sessionDurationSec * 1000, Math.max(0, Date.now() - startedAtMs));
+        setElapsedMs(elapsed);
+        if (elapsed >= sessionDurationSec * 1000) completeSession();
       };
 
       updateElapsed();
-      const interval = setInterval(updateElapsed, 250);
+      const interval = setInterval(updateElapsed, 80);
       const appSub = AppState.addEventListener("change", (state) => {
         if (state === "active") {
           updateElapsed();
@@ -307,6 +363,37 @@ export default function QuitlyShieldScreen() {
     };
   }, [stopShieldAudio]);
 
+  useEffect(() => {
+    if (sessionState !== "running") {
+      breath.stopAnimation();
+      breath.setValue(0);
+      return;
+    }
+    if (reduceMotion) {
+      breath.stopAnimation();
+      breath.setValue(0.35);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breath, {
+          toValue: 1,
+          duration: MOTION_DURATION.breathCycle,
+          easing: easeOutCubic,
+          useNativeDriver: true,
+        }),
+        Animated.timing(breath, {
+          toValue: 0,
+          duration: MOTION_DURATION.breathCycle,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [breath, reduceMotion, sessionState]);
+
   const startShieldSession = () => {
     if (sessionState === "running") return;
 
@@ -320,13 +407,15 @@ export default function QuitlyShieldScreen() {
     const durationForSession = getShieldDurationSecForPlan(isPremium);
 
     const pickedVariant: ShieldVariant = !isPremium ? "morphing" : pickRandomVariant();
+    const startAtMs = Date.now();
 
     setActiveVariant(pickedVariant);
     setConfiguredDurationSec(durationForSession);
     setSessionDurationSec(durationForSession);
-    startedAtMsRef.current = Date.now();
+    startedAtMsRef.current = startAtMs;
+    persistRunningSession(startAtMs, durationForSession);
     completionHandledRef.current = false;
-    setElapsedSec(0);
+    setElapsedMs(0);
     setSessionState("running");
     setView("session");
     refreshStats();
@@ -350,7 +439,7 @@ export default function QuitlyShieldScreen() {
 
   const closeCompleted = () => {
     setSessionState("idle");
-    setElapsedSec(0);
+    setElapsedMs(0);
     setSessionDurationSec(configuredDurationSec);
     startedAtMsRef.current = null;
     completionHandledRef.current = false;
@@ -380,6 +469,16 @@ export default function QuitlyShieldScreen() {
     if (sessionState === "running") {
       return (
         <View style={styles.sessionWrap}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.breathHalo,
+              {
+                opacity: breathOpacity,
+                transform: [{ scale: breathScale }],
+              },
+            ]}
+          />
           <View style={styles.sessionGlowA} />
           <View style={styles.sessionGlowB} />
           <Animated.View pointerEvents="none" style={[styles.sparkOverlay, { opacity: sparkOpacity }]} />
@@ -609,6 +708,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     position: "relative",
     overflow: "hidden",
+  },
+  breathHalo: {
+    position: "absolute",
+    width: 260,
+    height: 260,
+    borderRadius: 999,
+    backgroundColor: "rgba(74,222,128,0.2)",
+    alignSelf: "center",
   },
   sessionGlowA: {
     position: "absolute",

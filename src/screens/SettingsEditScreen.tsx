@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, ScrollView } from "react-native";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -11,6 +11,7 @@ import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
 import { getNumber, getString, setNumber, setString } from "../storage/mmkv";
 import { toLocalISODate, todayLocalISODate } from "../utils/date";
+import { readResolvedLanguage } from "../localization/preferences";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SettingsEdit">;
 
@@ -67,7 +68,9 @@ function Stepper({
 }
 
 export default function SettingsEditScreen({ navigation }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const resolvedLanguage = readResolvedLanguage() ?? (i18n.resolvedLanguage?.startsWith("fr") ? "fr" : "en");
+  const dateLocale = resolvedLanguage === "fr" ? "fr-FR" : "en-US";
 
   const initialQuitDate = getString(StorageKeys.quitDate) ?? todayLocalISODate();
   const initialDate = parseISODate(initialQuitDate);
@@ -77,6 +80,7 @@ export default function SettingsEditScreen({ navigation }: Props) {
   const [cigsPerDay, setCigsPerDay] = useState(getNumber(StorageKeys.cigsPerDay) ?? 12);
   const [pricePerPack, setPricePerPack] = useState(getNumber(StorageKeys.pricePerPack) ?? 12);
   const [cigsPerPack, setCigsPerPack] = useState(getNumber(StorageKeys.cigsPerPack) ?? 20);
+  const leaveScreenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const today = useMemo(() => {
     const now = new Date();
@@ -84,13 +88,13 @@ export default function SettingsEditScreen({ navigation }: Props) {
   }, []);
 
   const prettyDate = useMemo(() => {
-    return date.toLocaleDateString(undefined, {
+    return date.toLocaleDateString(dateLocale, {
       weekday: "short",
       day: "2-digit",
       month: "short",
       year: "numeric",
     });
-  }, [date]);
+  }, [date, dateLocale]);
 
   const onDateChange = (_: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS === "android") setShowDatePicker(false);
@@ -98,16 +102,41 @@ export default function SettingsEditScreen({ navigation }: Props) {
     setDate(clampToToday(selected));
   };
 
+  React.useEffect(() => {
+    return () => {
+      if (leaveScreenTimerRef.current) {
+        clearTimeout(leaveScreenTimerRef.current);
+      }
+    };
+  }, []);
+
+  const closePickerAndGoBack = () => {
+    if (leaveScreenTimerRef.current) {
+      clearTimeout(leaveScreenTimerRef.current);
+      leaveScreenTimerRef.current = null;
+    }
+    if (Platform.OS !== "ios") {
+      navigation.goBack();
+      return;
+    }
+    // Close iOS picker first to avoid native picker handoff crashes on the previous screen.
+    setShowDatePicker(false);
+    leaveScreenTimerRef.current = setTimeout(() => {
+      navigation.goBack();
+      leaveScreenTimerRef.current = null;
+    }, 120);
+  };
+
   const onSave = () => {
     setString(StorageKeys.quitDate, toISODate(date));
     setNumber(StorageKeys.cigsPerDay, Math.max(0, Math.min(80, cigsPerDay)));
     setNumber(StorageKeys.pricePerPack, Math.max(0, Math.min(50, pricePerPack)));
     setNumber(StorageKeys.cigsPerPack, Math.max(1, Math.min(40, cigsPerPack)));
-    navigation.goBack();
+    closePickerAndGoBack();
   };
 
   const onCancel = () => {
-    navigation.goBack();
+    closePickerAndGoBack();
   };
 
   return (
@@ -142,7 +171,8 @@ export default function SettingsEditScreen({ navigation }: Props) {
                 maximumDate={today}
                 display={Platform.OS === "ios" ? "inline" : "default"}
                 onChange={onDateChange}
-                themeVariant="dark"
+                locale={dateLocale}
+                {...(Platform.OS === "ios" ? { themeVariant: "dark" as const } : {})}
                 style={styles.datePicker}
               />
             </View>

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView, Linking } from "react-native";
+import { Text, View, StyleSheet, Pressable, Alert, Platform, ScrollView, Linking, AppState } from "react-native";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -115,6 +115,28 @@ function sortTimes(times: NotificationTime[]) {
   return [...times].sort((a, b) => a.hour - b.hour || a.minute - b.minute);
 }
 
+function sanitizeNotificationTime(time: NotificationTime | null | undefined): NotificationTime {
+  if (!time) return { hour: 9, minute: 0 };
+  const rawHour = Number(time.hour);
+  const rawMinute = Number(time.minute);
+  if (!Number.isFinite(rawHour) || !Number.isFinite(rawMinute)) return { hour: 9, minute: 0 };
+  const hour = Math.max(0, Math.min(23, Math.floor(rawHour)));
+  const minute = Math.max(0, Math.min(59, Math.floor(rawMinute)));
+  return { hour, minute };
+}
+
+function buildPickerDate(time: NotificationTime): Date {
+  const safeTime = sanitizeNotificationTime(time);
+  const readyDate = new Date();
+  readyDate.setHours(safeTime.hour, safeTime.minute, 0, 0);
+  if (Number.isNaN(readyDate.getTime())) {
+    const fallback = new Date();
+    fallback.setHours(9, 0, 0, 0);
+    return fallback;
+  }
+  return readyDate;
+}
+
 function formatDateForLanguage(dateISO: string, language: "fr" | "en") {
   const date = new Date(`${dateISO}T00:00:00`);
   if (Number.isNaN(date.getTime())) return dateISO;
@@ -154,24 +176,39 @@ export default function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [, setTick] = useState(0);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallDismissedReady, setPaywallDismissedReady] = useState(true);
+  const [isPremiumState, setIsPremiumState] = useState<boolean>(() => getBool(StorageKeys.isPremium) ?? false);
+  const [notificationsEnabledState, setNotificationsEnabledState] = useState<boolean>(
+    () => (getBool(StorageKeys.notificationsEnabled) ?? false) && (getBool(StorageKeys.isPremium) ?? false)
+  );
   const [notificationPlan, setNotificationPlan] = useState<NotificationPlan>(() => readNotificationPlan());
   const [timeEditorVisible, setTimeEditorVisible] = useState(false);
   const [editorTarget, setEditorTarget] = useState<EditorTarget>(null);
   const [pendingTime, setPendingTime] = useState<NotificationTime>({ hour: 9, minute: 0 });
   const [pickerDate, setPickerDate] = useState(new Date());
+  const [timePickerRenderKey, setTimePickerRenderKey] = useState(0);
   const [biometricReady, setBiometricReady] = useState(false);
   const [shieldDurationSec, setShieldDurationSecState] = useState(() =>
     getShieldDurationSecForPlan(getBool(StorageKeys.isPremium) ?? false)
   );
   const [shieldDurationPickerVisible, setShieldDurationPickerVisible] = useState(false);
   const [shieldToastVisible, setShieldToastVisible] = useState(false);
+  const [notificationsBusy, setNotificationsBusy] = useState(false);
+  const [notificationPickerReady, setNotificationPickerReady] = useState(true);
   const shieldToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const premiumTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notificationPickerReadyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paywallDismissFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [premiumTransitioning, setPremiumTransitioning] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
       setTick((x) => x + 1);
       setNotificationPlan(readNotificationPlan());
       const premium = getBool(StorageKeys.isPremium) ?? false;
+      const notifPref = getBool(StorageKeys.notificationsEnabled) ?? false;
+      setIsPremiumState(premium);
+      setNotificationsEnabledState(notifPref && premium);
       setShieldDurationSecState(getShieldDurationSecForPlan(premium));
       isBiometricAvailable()
         .then(setBiometricReady)
@@ -183,9 +220,8 @@ export default function SettingsScreen() {
   const cigsPerDay = getNumber(StorageKeys.cigsPerDay) ?? 12;
   const pricePerPack = getNumber(StorageKeys.pricePerPack) ?? 12;
   const cigsPerPack = getNumber(StorageKeys.cigsPerPack) ?? 20;
-  const isPremium = getBool(StorageKeys.isPremium) ?? false;
-  const notificationsEnabledPref = getBool(StorageKeys.notificationsEnabled) ?? false;
-  const notificationsEnabled = notificationsEnabledPref && isPremium;
+  const isPremium = isPremiumState;
+  const notificationsEnabled = notificationsEnabledState && isPremium;
   const shieldSoundEnabled = getBool(StorageKeys.shieldSoundEnabled) ?? false;
   const launchMode = getLaunchMode();
   const needsRevenueCatReminder = launchMode !== "expo_go" && !isRevenueCatConfigured();
@@ -205,12 +241,58 @@ export default function SettingsScreen() {
   const currentShieldDurationLabel = formatShieldDurationMinutes(shieldDurationSec);
 
   React.useEffect(() => {
+    const holdNotificationPicker = (delayMs: number) => {
+      setNotificationPickerReady(false);
+      if (notificationPickerReadyTimerRef.current) {
+        clearTimeout(notificationPickerReadyTimerRef.current);
+      }
+      notificationPickerReadyTimerRef.current = setTimeout(() => {
+        setNotificationPickerReady(true);
+        notificationPickerReadyTimerRef.current = null;
+      }, delayMs);
+    };
+
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        // After system sheets (notif permissions), let native stack settle before opening a picker.
+        holdNotificationPicker(700);
+      }
+    });
+
     return () => {
+      sub.remove();
       if (shieldToastTimerRef.current) {
         clearTimeout(shieldToastTimerRef.current);
       }
+      if (premiumTransitionTimerRef.current) {
+        clearTimeout(premiumTransitionTimerRef.current);
+      }
+      if (notificationPickerReadyTimerRef.current) {
+        clearTimeout(notificationPickerReadyTimerRef.current);
+      }
+      if (paywallDismissFallbackTimerRef.current) {
+        clearTimeout(paywallDismissFallbackTimerRef.current);
+      }
     };
   }, []);
+
+  React.useEffect(() => {
+    if (paywallOpen) {
+      setPaywallDismissedReady(false);
+      if (paywallDismissFallbackTimerRef.current) {
+        clearTimeout(paywallDismissFallbackTimerRef.current);
+      }
+      return;
+    }
+    // Fallback in case onDismiss is delayed/missed on some devices.
+    if (paywallDismissFallbackTimerRef.current) {
+      clearTimeout(paywallDismissFallbackTimerRef.current);
+    }
+    paywallDismissFallbackTimerRef.current = setTimeout(() => {
+      setPaywallDismissedReady(true);
+      paywallDismissFallbackTimerRef.current = null;
+    }, 350);
+  }, [paywallOpen]);
 
   const showShieldDurationToast = () => {
     if (shieldToastTimerRef.current) {
@@ -243,23 +325,23 @@ export default function SettingsScreen() {
   };
 
   const openTimePicker = (target: EditorTarget, time: NotificationTime) => {
-    if (!target) return;
-    const readyDate = new Date();
-    readyDate.setHours(time.hour, time.minute, 0, 0);
+    if (!target || premiumTransitioning || paywallOpen || !paywallDismissedReady || notificationsBusy || !notificationPickerReady) return;
+    const safeTime = sanitizeNotificationTime(time);
+    const readyDate = buildPickerDate(safeTime);
     setPickerDate(readyDate);
-    setPendingTime(time);
+    setPendingTime(safeTime);
     setEditorTarget(target);
+    setTimePickerRenderKey((prev) => prev + 1);
     setTimeEditorVisible(true);
   };
 
-  const addCheckReminder = async () => {
+  const addCheckReminder = () => {
+    if (notificationsBusy || premiumTransitioning || paywallOpen || !paywallDismissedReady || !notificationPickerReady || !notificationsEnabled) return;
     if (notificationPlan.check) {
       openTimePicker({ kind: "check" }, notificationPlan.check);
       return;
     }
-    const next = { ...notificationPlan, check: { hour: 9, minute: 0 } };
-    await persistNotificationPlan(next);
-    openTimePicker({ kind: "check" }, next.check!);
+    openTimePicker({ kind: "check" }, { hour: 9, minute: 0 });
   };
 
   const removeCheckReminder = async () => {
@@ -268,13 +350,11 @@ export default function SettingsScreen() {
     setTimeEditorVisible(false);
   };
 
-  const addPassiveReminder = async () => {
+  const addPassiveReminder = () => {
+    if (notificationsBusy || premiumTransitioning || paywallOpen || !paywallDismissedReady || !notificationPickerReady || !notificationsEnabled) return;
     if (notificationPlan.passive.length >= 2) return;
-    const updatedPassive = [...notificationPlan.passive, { hour: 18, minute: 0 }];
-    const next = { ...notificationPlan, passive: sortTimes(updatedPassive) };
-    await persistNotificationPlan(next);
-    const index = next.passive.length - 1;
-    openTimePicker({ kind: "passive", index }, next.passive[index]!);
+    // Draft only: persist on confirm so "Cancel" does not create a reminder.
+    openTimePicker({ kind: "passive", index: notificationPlan.passive.length }, { hour: 18, minute: 0 });
   };
 
   const removePassiveReminder = async (index: number) => {
@@ -286,6 +366,7 @@ export default function SettingsScreen() {
 
   const handleTimeChange = (_: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
+    if (Number.isNaN(selected.getTime())) return;
     setPickerDate(selected);
     setPendingTime({ hour: selected.getHours(), minute: selected.getMinutes() });
   };
@@ -304,12 +385,20 @@ export default function SettingsScreen() {
     }
 
     const idx = editorTarget.index;
-    if (idx < 0 || idx >= notificationPlan.passive.length) {
+    if (idx < 0) {
       setTimeEditorVisible(false);
       return;
     }
     const updatedPassive = [...notificationPlan.passive];
-    updatedPassive[idx] = pendingTime;
+    if (idx >= updatedPassive.length) {
+      if (updatedPassive.length >= 2) {
+        setTimeEditorVisible(false);
+        return;
+      }
+      updatedPassive.push(pendingTime);
+    } else {
+      updatedPassive[idx] = pendingTime;
+    }
     const next = { ...notificationPlan, passive: sortTimes(updatedPassive) };
     setTimeEditorVisible(false);
     await persistNotificationPlan(next);
@@ -321,13 +410,22 @@ export default function SettingsScreen() {
   };
 
   const toggleNotifications = async () => {
+    if (notificationsBusy || premiumTransitioning || paywallOpen || !paywallDismissedReady) return;
+    setNotificationsBusy(true);
+    setNotificationPickerReady(false);
+    if (notificationPickerReadyTimerRef.current) {
+      clearTimeout(notificationPickerReadyTimerRef.current);
+      notificationPickerReadyTimerRef.current = null;
+    }
     const next = !notificationsEnabled;
     setBool(StorageKeys.notificationsEnabled, next);
+    setNotificationsEnabledState(next && isPremium);
     refresh();
     try {
       if (next) {
         if (!isPremium) {
           setBool(StorageKeys.notificationsEnabled, false);
+          setNotificationsEnabledState(false);
           refresh();
           setPaywallOpen(true);
           return;
@@ -335,6 +433,7 @@ export default function SettingsScreen() {
         const ok = await requestNotifPermissions();
         if (!ok) {
           setBool(StorageKeys.notificationsEnabled, false);
+          setNotificationsEnabledState(false);
           refresh();
           Alert.alert(t("settingsNotifPermissionTitle"), t("settingsNotifPermissionBody"));
           return;
@@ -345,8 +444,15 @@ export default function SettingsScreen() {
       }
     } catch {
       setBool(StorageKeys.notificationsEnabled, !next);
+      setNotificationsEnabledState(!next && isPremium);
       refresh();
       Alert.alert(t("settingsNotifErrorTitle"), t("settingsNotifErrorBody"));
+    } finally {
+      setNotificationsBusy(false);
+      notificationPickerReadyTimerRef.current = setTimeout(() => {
+        setNotificationPickerReady(true);
+        notificationPickerReadyTimerRef.current = null;
+      }, 700);
     }
   };
 
@@ -360,6 +466,13 @@ export default function SettingsScreen() {
       const info = await restoreRevenueCatPurchases();
       const premium = hasPremiumEntitlement(info);
       setBool(StorageKeys.isPremium, premium);
+      setIsPremiumState(premium);
+      if (!premium) {
+        setNotificationsEnabledState(false);
+      } else {
+        const notifPref = getBool(StorageKeys.notificationsEnabled) ?? false;
+        setNotificationsEnabledState(notifPref);
+      }
       refresh();
       if (premium) {
         Alert.alert(t("restore"), t("paywallPremiumEnabled"));
@@ -387,6 +500,26 @@ export default function SettingsScreen() {
 
   const unlockPremium = () => {
     setBool(StorageKeys.isPremium, true);
+    setIsPremiumState(true);
+    const notifPref = getBool(StorageKeys.notificationsEnabled) ?? false;
+    setNotificationsEnabledState(notifPref);
+    setNotificationPickerReady(false);
+    if (notificationPickerReadyTimerRef.current) {
+      clearTimeout(notificationPickerReadyTimerRef.current);
+      notificationPickerReadyTimerRef.current = null;
+    }
+    setPremiumTransitioning(true);
+    if (premiumTransitionTimerRef.current) {
+      clearTimeout(premiumTransitionTimerRef.current);
+    }
+    premiumTransitionTimerRef.current = setTimeout(() => {
+      setPremiumTransitioning(false);
+      premiumTransitionTimerRef.current = null;
+    }, 450);
+    notificationPickerReadyTimerRef.current = setTimeout(() => {
+      setNotificationPickerReady(true);
+      notificationPickerReadyTimerRef.current = null;
+    }, 700);
     refresh();
     setPaywallOpen(false);
   };
@@ -702,12 +835,18 @@ export default function SettingsScreen() {
             <Text style={styles.timeEditorTitle}>{t("notificationsEditTitle")}</Text>
             <View style={styles.editorPickerWrap}>
               <DateTimePicker
-                value={pickerDate}
+                key={`time-picker-${timePickerRenderKey}`}
+                value={pickerDate}                
                 mode="time"
                 is24Hour
-                display="spinner"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
                 onChange={handleTimeChange}
-                textColor={theme.colors.textPrimary}
+                {...(Platform.OS === "ios"
+                  ? {
+                      themeVariant: "dark" as const,
+                      textColor: "#FFFFFF",
+                    }
+                  : {})}
                 style={styles.editorPicker}
               />
             </View>
@@ -772,6 +911,7 @@ export default function SettingsScreen() {
       <PaywallModal
         visible={paywallOpen}
         onClose={() => setPaywallOpen(false)}
+        onDismiss={() => setPaywallDismissedReady(true)}
         onUnlock={unlockPremium}
         savedAmountLabel={formatMoney(0)}
       />
@@ -923,7 +1063,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   editorPickerWrap: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.elevated,
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.divider,

@@ -21,6 +21,8 @@ export const StorageKeys = {
   shieldVariantMode: "shield_variantMode",
   shieldSoundEnabled: "shield_sound_enabled",
   shieldDurationSec: "shield_duration_sec",
+  shieldActiveStartAtMs: "shield_active_start_at_ms",
+  shieldActiveDurationSec: "shield_active_duration_sec",
   journalEntries: "journal_entries",
   dailyStatusV1: "daily_status_v1",
   monthlyReportsV1: "monthly_reports_v1",

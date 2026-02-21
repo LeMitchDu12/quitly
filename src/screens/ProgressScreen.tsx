@@ -18,6 +18,7 @@ import type { RootStackParamList } from "../navigation/Root";
 import { analyzeJournalPatterns } from "../journal/journalInsights";
 import { readJournalEntries } from "../journal/journalStorage";
 import type { JournalEntry } from "../journal/journalTypes";
+import { FadeIn, MOTION_STAGGER_MS, useReducedMotion } from "../animations";
 
 type ProgressProfile = {
   isPremium: boolean;
@@ -73,6 +74,7 @@ export default function ProgressScreen() {
   const [checkins, setCheckins] = useState<DailyCheckin[]>(() => readDailyCheckins());
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => readJournalEntries());
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const { isPremium, quitDate, cigsPerDay, pricePerPack, cigsPerPack } = profile;
 
   useFocusEffect(
@@ -233,6 +235,7 @@ export default function ProgressScreen() {
           <Text style={styles.monthlyReportEntrySub}>{t("monthly_report.open_hint")}</Text>
         </Pressable>
 
+        <FadeIn delay={0} reducedMotion={reducedMotion}>
         <View style={styles.chartBox}>
           <View style={styles.chartHeaderRow}>
             <View>
@@ -268,7 +271,9 @@ export default function ProgressScreen() {
             <Text style={styles.locked}>{t("journalPremiumBody")}</Text>
           )}
         </View>
+        </FadeIn>
 
+        <FadeIn delay={MOTION_STAGGER_MS} reducedMotion={reducedMotion}>
         <View style={styles.chartBox}>
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>{t("relapseDailyChartTitle")}</Text>
@@ -285,7 +290,9 @@ export default function ProgressScreen() {
           </View>
           <Text style={styles.legendSubText}>{t("relapseDailyChartSubtitle")}</Text>
         </View>
+        </FadeIn>
 
+        <FadeIn delay={MOTION_STAGGER_MS * 2} reducedMotion={reducedMotion}>
         <View style={styles.chartBox}>
           <Text style={styles.chartTitle}>🏅 {t("relapseBadgesTitle")}</Text>
           <Text style={styles.legendSubText}>{t("relapseBadgesSubtitle", { days: streakDays })}</Text>
@@ -306,7 +313,9 @@ export default function ProgressScreen() {
             <Text style={styles.locked}>{t("premiumRelapseInsightsTeaser")}</Text>
           )}
         </View>
+        </FadeIn>
 
+        <FadeIn delay={MOTION_STAGGER_MS * 3} reducedMotion={reducedMotion}>
         <View style={styles.chartBox}>
           <Text style={styles.chartTitle}>🧾 {t("relapseHistoryTitle")}</Text>
           {isPremium ? (
@@ -338,7 +347,9 @@ export default function ProgressScreen() {
             <Text style={styles.locked}>{t("premiumRelapseInsightsTeaser")}</Text>
           )}
         </View>
+        </FadeIn>
 
+        <FadeIn delay={MOTION_STAGGER_MS * 4} reducedMotion={reducedMotion}>
         <View style={styles.chartBox}>
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>€ {t("chartTitleSavings")}</Text>
@@ -367,7 +378,9 @@ export default function ProgressScreen() {
             <Text style={styles.locked}>{t("chartsPremium")}</Text>
           )}
         </View>
+        </FadeIn>
 
+        <FadeIn delay={MOTION_STAGGER_MS * 5} reducedMotion={reducedMotion}>
         <View style={styles.chartBox}>
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>🚭 {t("chartTitleCigarettes")}</Text>
@@ -396,7 +409,9 @@ export default function ProgressScreen() {
             <Text style={styles.locked}>{t("chartsPremium")}</Text>
           )}
         </View>
+        </FadeIn>
 
+        <FadeIn delay={MOTION_STAGGER_MS * 6} reducedMotion={reducedMotion}>
         <View style={styles.chartBox}>
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>📈 {t("projectionSavingsTitle")}</Text>
@@ -421,6 +436,7 @@ export default function ProgressScreen() {
             <Text style={styles.locked}>{t("chartsPremium")}</Text>
           )}
         </View>
+        </FadeIn>
 
       </ScrollView>
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} onUnlock={unlockPremium} savedAmountLabel={savedLabel} />

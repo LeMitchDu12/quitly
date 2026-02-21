@@ -16,6 +16,8 @@ import { todayLocalISODate } from "../utils/date";
 import { DailyCheckin, lastRelapseDate, readDailyCheckins, totalSmokedSince, upsertDailyCheckin } from "../storage/checkins";
 import type { RootStackParamList } from "../navigation/Root";
 import { formatShieldDurationMinutes, getShieldDurationSecForPlan } from "../shield/shieldDuration";
+import { AnimatedCounter, FadeIn, MOTION_STAGGER_MS, useReducedMotion } from "../animations";
+import { readResolvedLanguage } from "../localization/preferences";
 
 function formatDate(dateISO: string, locale: string) {
   const d = new Date(`${dateISO}T00:00:00`);
@@ -68,6 +70,8 @@ type Profile = {
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
+  const resolvedLanguage = readResolvedLanguage() ?? (i18n.resolvedLanguage?.startsWith("fr") ? "fr" : "en");
+  const dateLocale = resolvedLanguage === "fr" ? "fr-FR" : "en-US";
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [checkins, setCheckins] = useState<DailyCheckin[]>([]);
@@ -76,6 +80,7 @@ export default function HomeScreen() {
   const [dailyCigs, setDailyCigs] = useState(1);
   const [selectedRelapseDate, setSelectedRelapseDate] = useState(todayLocalISODate());
   const [showRelapseDatePicker, setShowRelapseDatePicker] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   const loadData = () => {
     const quitDate = getString(StorageKeys.quitDate) ?? todayLocalISODate();
@@ -173,9 +178,7 @@ export default function HomeScreen() {
   }
 
   const savedLabel = formatMoney(stats.saved);
-  const locale = i18n.language || "fr-FR";
-  const avoidedLabel = stats.avoided.toLocaleString(locale);
-  const gainedHoursLabel = `${stats.gainedHours.toLocaleString(locale)}h`;
+  const locale = dateLocale;
   const showDailyCheckin = stats.days > 0 || !!todayCheckin || dailyRelapseMode;
   const shieldDurationLabel = formatShieldDurationMinutes(getShieldDurationSecForPlan(profile.isPremium));
 
@@ -188,7 +191,7 @@ export default function HomeScreen() {
   const renderCheckinCard = () => {
     if (dailyRelapseMode) {
       const yesterday = addDaysISO(today, -1);
-      const relapseDateLabel = formatDate(selectedRelapseDate, i18n.language || "fr-FR");
+      const relapseDateLabel = formatDate(selectedRelapseDate, dateLocale);
       const isTodaySelected = selectedRelapseDate === today;
       const isYesterdaySelected = selectedRelapseDate === yesterday;
 
@@ -229,6 +232,7 @@ export default function HomeScreen() {
                 maximumDate={new Date()}
                 display={Platform.OS === "ios" ? "inline" : "default"}
                 onChange={onRelapseDateChange}
+                locale={dateLocale}
                 themeVariant="dark"
                 style={styles.datePicker}
               />
@@ -321,7 +325,13 @@ export default function HomeScreen() {
           {stats.days === 0 ? (
             <Text style={styles.heroFirstDay}>{t("homeHeroFirstDay")}</Text>
           ) : (
-            <Text style={styles.heroNumber}>{stats.days}</Text>
+            <AnimatedCounter
+              value={stats.days}
+              precision={0}
+              minDeltaToAnimate={1}
+              formatter={(value) => String(Math.max(0, Math.round(value)))}
+              style={styles.heroNumber}
+            />
           )}
           <Text style={styles.heroLabel}>{stats.days === 0 ? t("homeSmokeFreeShort") : t("daysSmokeFree")}</Text>
           <View style={styles.heroDivider} />
@@ -329,7 +339,7 @@ export default function HomeScreen() {
             {stats.days === 0
               ? t("homeDayZero")
               : lastRelapse
-              ? t("homeRelapseSubtitle", { date: formatDate(lastRelapse, i18n.language || "fr-FR") })
+              ? t("homeRelapseSubtitle", { date: formatDate(lastRelapse, dateLocale) })
               : t("homeKeepGoing")}
           </Text>
         </View>
@@ -337,7 +347,7 @@ export default function HomeScreen() {
         <View style={styles.metaRow}>
           <View style={styles.metaCard}>
             <Text style={styles.metaLabel}>{t("quitDate")}</Text>
-            <Text style={styles.metaValue}>{formatDate(profile.quitDate, i18n.language || "fr-FR")}</Text>
+            <Text style={styles.metaValue}>{formatDate(profile.quitDate, dateLocale)}</Text>
           </View>
           <View style={styles.metaCard}>
             <Text style={styles.metaLabel}>{t("premium")}</Text>
@@ -359,24 +369,48 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          <Pressable style={styles.primaryMetricCard} onPress={() => navigation.navigate("Progress")}>
-            <View style={styles.primaryMetricGlow} />
-            <Text style={styles.primaryMetricKicker}>{t("moneySaved")}</Text>
-            <Text style={styles.primaryMetricValue}>{savedLabel}</Text>
-            <Text style={styles.primaryMetricHint}>{t("chartLegendSinceQuit", { days: stats.days })}</Text>
-          </Pressable>
+          <FadeIn delay={0} reducedMotion={reducedMotion}>
+            <Pressable style={styles.primaryMetricCard} onPress={() => navigation.navigate("Progress")}>
+              <View style={styles.primaryMetricGlow} />
+              <Text style={styles.primaryMetricKicker}>{t("moneySaved")}</Text>
+              <AnimatedCounter
+                value={stats.saved}
+                precision={0}
+                minDeltaToAnimate={1}
+                formatter={(value) => formatMoney(Math.max(0, value))}
+                style={styles.primaryMetricValue}
+              />
+              <Text style={styles.primaryMetricHint}>{t("chartLegendSinceQuit", { days: stats.days })}</Text>
+            </Pressable>
+          </FadeIn>
 
           <View style={styles.metricGrid}>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricIcon}>{"\uD83D\uDEAD"}</Text>
-              <Text style={styles.metricValue}>{avoidedLabel}</Text>
-              <Text style={styles.metricLabel}>{t("cigarettesAvoided")}</Text>
-            </View>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricIcon}>{"\u23F1\uFE0F"}</Text>
-              <Text style={styles.metricValue}>{gainedHoursLabel}</Text>
-              <Text style={styles.metricLabel}>{t("timeGained")}</Text>
-            </View>
+            <FadeIn delay={MOTION_STAGGER_MS} style={{ flex: 1 }} reducedMotion={reducedMotion}>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricIcon}>{"\uD83D\uDEAD"}</Text>
+                <AnimatedCounter
+                  value={stats.avoided}
+                  precision={0}
+                  minDeltaToAnimate={1}
+                  formatter={(value) => Math.max(0, Math.round(value)).toLocaleString(locale)}
+                  style={styles.metricValue}
+                />
+                <Text style={styles.metricLabel}>{t("cigarettesAvoided")}</Text>
+              </View>
+            </FadeIn>
+            <FadeIn delay={MOTION_STAGGER_MS * 2} style={{ flex: 1 }} reducedMotion={reducedMotion}>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricIcon}>{"\u23F1\uFE0F"}</Text>
+                <AnimatedCounter
+                  value={stats.gainedHours}
+                  precision={0}
+                  minDeltaToAnimate={1}
+                  formatter={(value) => `${Math.max(0, Math.round(value)).toLocaleString(locale)}h`}
+                  style={styles.metricValue}
+                />
+                <Text style={styles.metricLabel}>{t("timeGained")}</Text>
+              </View>
+            </FadeIn>
           </View>
         </View>
       </ScrollView>

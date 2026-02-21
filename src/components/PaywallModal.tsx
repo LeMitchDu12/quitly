@@ -9,16 +9,18 @@ export default function PaywallModal({
   onClose,
   onUnlock,
   savedAmountLabel,
+  onDismiss,
 }: {
   visible: boolean;
   onClose: () => void;
   onUnlock: () => void;
   savedAmountLabel: string;
+  onDismiss?: () => void;
 }) {
   const { t } = useTranslation();
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent onDismiss={onDismiss}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>

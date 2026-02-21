@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, ScrollView } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -13,6 +13,7 @@ import { getNumber, setString } from "../../storage/mmkv";
 import { moneySaved } from "../../utils/calculations";
 import { formatMoney } from "../../localization/money";
 import { toLocalISODate } from "../../utils/date";
+import { readResolvedLanguage } from "../../localization/preferences";
 
 type Props = NativeStackScreenProps<RootStackParamList, "QuitDate">;
 
@@ -34,7 +35,9 @@ function addDays(base: Date, delta: number) {
 }
 
 export default function QuitDateScreen({ navigation }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const resolvedLanguage = readResolvedLanguage() ?? (i18n.resolvedLanguage?.startsWith("fr") ? "fr" : "en");
+  const dateLocale = resolvedLanguage === "fr" ? "fr-FR" : "en-US";
 
   const today = useMemo(() => {
     const now = new Date();
@@ -43,15 +46,16 @@ export default function QuitDateScreen({ navigation }: Props) {
 
   const [date, setDate] = useState<Date>(today);
   const [showPicker, setShowPicker] = useState(Platform.OS === "ios");
+  const continueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pretty = useMemo(() => {
-    return date.toLocaleDateString(undefined, {
+    return date.toLocaleDateString(dateLocale, {
       weekday: "short",
       day: "2-digit",
       month: "short",
       year: "numeric",
     });
-  }, [date]);
+  }, [date, dateLocale]);
 
   const isToday = useMemo(() => toISODate(date) === toISODate(today), [date, today]);
   const isYesterday = useMemo(() => toISODate(date) === toISODate(addDays(today, -1)), [date, today]);
@@ -71,9 +75,29 @@ export default function QuitDateScreen({ navigation }: Props) {
     setDate(clampToToday(selected));
   };
 
+  React.useEffect(() => {
+    return () => {
+      if (continueTimerRef.current) {
+        clearTimeout(continueTimerRef.current);
+      }
+    };
+  }, []);
+
   const saveAndContinue = () => {
     setString(StorageKeys.quitDate, toISODate(date));
-    navigation.navigate("Consumption");
+    if (Platform.OS !== "ios") {
+      navigation.navigate("Consumption");
+      return;
+    }
+    // Close iOS date picker first to avoid later native picker crashes on Settings notification flow.
+    setShowPicker(false);
+    if (continueTimerRef.current) {
+      clearTimeout(continueTimerRef.current);
+    }
+    continueTimerRef.current = setTimeout(() => {
+      navigation.navigate("Consumption");
+      continueTimerRef.current = null;
+    }, 120);
   };
 
   return (
@@ -136,7 +160,7 @@ export default function QuitDateScreen({ navigation }: Props) {
           <Text style={styles.previewHint}>{t("onboardingPreviewHint")}</Text>
         </View>
 
-        {(Platform.OS === "ios" || showPicker) && (
+        {showPicker && (
           <View style={styles.pickerWrap}>
             <DateTimePicker
               value={date}
@@ -144,6 +168,7 @@ export default function QuitDateScreen({ navigation }: Props) {
               maximumDate={today}
               display={Platform.OS === "ios" ? "inline" : "default"}
               onChange={onChange}
+              locale={dateLocale}
               themeVariant="dark"
               style={styles.datePicker}
             />
