@@ -27,7 +27,6 @@ import type { RootStackParamList } from "../navigation/Root";
 
 type ShieldView = "session" | "stats";
 type SessionState = "idle" | "running" | "completed";
-type ShieldModelOption = "random" | ShieldVariant;
 
 const SHIELD_VARIANTS: ShieldVariant[] = [
   "default",
@@ -41,7 +40,6 @@ const SHIELD_VARIANTS: ShieldVariant[] = [
   "geoV3",
   "geoV4",
 ];
-const SHIELD_MODEL_OPTIONS: ShieldModelOption[] = ["random", ...SHIELD_VARIANTS];
 
 function pickRandomVariant(): ShieldVariant {
   const idx = Math.floor(Math.random() * SHIELD_VARIANTS.length);
@@ -70,8 +68,6 @@ export default function QuitlyShieldScreen() {
   const [pendingJournalAfterUnlock, setPendingJournalAfterUnlock] = useState(false);
   const [statsTick, setStatsTick] = useState(0);
   const [activeVariant, setActiveVariant] = useState<ShieldVariant>("default");
-  const [selectedModel, setSelectedModel] = useState<ShieldModelOption>("random");
-  const [audioDebugMessage, setAudioDebugMessage] = useState<string | null>(null);
 
   const startedAtMsRef = useRef<number | null>(null);
   const completionHandledRef = useRef(false);
@@ -209,16 +205,6 @@ export default function QuitlyShieldScreen() {
   const startShieldAudio = useCallback(async () => {
     const preferenceEnabled = getBool(StorageKeys.shieldSoundEnabled) ?? false;
     if (!SHIELD_SOUND_ENABLED || !isPremium || !preferenceEnabled) {
-      setAudioDebugMessage(
-        `Audio skipped (flag:${SHIELD_SOUND_ENABLED ? "on" : "off"}, premium:${isPremium ? "yes" : "no"}, pref:${
-          preferenceEnabled ? "on" : "off"
-        })`
-      );
-      console.log("[ShieldAudio] Skip start", {
-        featureFlag: SHIELD_SOUND_ENABLED,
-        isPremium,
-        preferenceEnabled,
-      });
       return;
     }
     if (audioStopRef.current || audioStartInFlightRef.current) return;
@@ -227,8 +213,7 @@ export default function QuitlyShieldScreen() {
     audioRequestIdRef.current = requestId;
     audioStartInFlightRef.current = true;
     try {
-      setAudioDebugMessage("Starting shield audio...");
-      const handle = await playShieldSound((message) => setAudioDebugMessage(message));
+      const handle = await playShieldSound();
       if (audioRequestIdRef.current !== requestId) {
         await handle.stop();
         return;
@@ -320,14 +305,9 @@ export default function QuitlyShieldScreen() {
 
     if (!isPremium) consumeFreeShieldWeeklySlot(new Date());
 
-    const pickedVariant: ShieldVariant = !isPremium
-      ? "default"
-      : selectedModel === "random"
-      ? pickRandomVariant()
-      : selectedModel;
+    const pickedVariant: ShieldVariant = !isPremium ? "default" : pickRandomVariant();
 
     setActiveVariant(pickedVariant);
-    setAudioDebugMessage(null);
     startedAtMsRef.current = Date.now();
     completionHandledRef.current = false;
     setElapsedSec(0);
@@ -418,11 +398,6 @@ export default function QuitlyShieldScreen() {
               {phaseText}
             </Text>
           </Animated.View>
-          {audioDebugMessage ? (
-            <View style={styles.audioDebugCard}>
-              <Text style={styles.audioDebugText}>{audioDebugMessage}</Text>
-            </View>
-          ) : null}
         </View>
       );
     }
@@ -555,31 +530,6 @@ export default function QuitlyShieldScreen() {
             </View>
           )}
         </View>
-        <View style={styles.modelDebugBadge}>
-          <Text style={styles.modelDebugText}>Model: {shieldVariant} (selected: {selectedModel})</Text>
-        </View>
-        {sessionState !== "running" && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.modelSelectorRow}
-            style={styles.modelSelectorWrap}
-          >
-            {SHIELD_MODEL_OPTIONS.map((option) => {
-              const active = selectedModel === option;
-              return (
-                <Pressable
-                  key={option}
-                  onPress={() => setSelectedModel(option)}
-                  style={[styles.modelChip, active && styles.modelChipActive]}
-                >
-                  <Text style={[styles.modelChipText, active && styles.modelChipTextActive]}>{option}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        )}
-
         {view === "session" || sessionState === "running" ? (
           renderSessionPanel()
         ) : (
@@ -883,65 +833,6 @@ const styles = StyleSheet.create({
   },
   recentDate: { color: theme.colors.textPrimary, fontWeight: "700" },
   recentMeta: { color: theme.colors.textSecondary, marginTop: 3, fontSize: 12 },
-  audioDebugCard: {
-    marginTop: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: "rgba(250,204,21,0.5)",
-    backgroundColor: "rgba(250,204,21,0.12)",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  audioDebugText: {
-    color: "#FDE68A",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  modelDebugBadge: {
-    marginTop: 6,
-    marginBottom: 2,
-    alignSelf: "flex-start",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(74,222,128,0.55)",
-    backgroundColor: "rgba(74,222,128,0.15)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  modelDebugText: {
-    color: "#86EFAC",
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 0.2,
-  },
-  modelSelectorWrap: {
-    marginTop: 6,
-    maxHeight: 46,
-  },
-  modelSelectorRow: {
-    gap: 8,
-    paddingRight: 8,
-  },
-  modelChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.colors.outline,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    backgroundColor: "transparent",
-  },
-  modelChipActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: "rgba(74,222,128,0.16)",
-  },
-  modelChipText: {
-    color: theme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  modelChipTextActive: {
-    color: theme.colors.primary,
-  },
 });
 
 
