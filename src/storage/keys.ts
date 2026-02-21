@@ -19,6 +19,7 @@ export const StorageKeys = {
   shieldWeekCount: "shield_weekCount",
   shieldTotalCompleted: "shield_totalCompleted",
   shieldVariantMode: "shield_variantMode",
+  shieldSoundEnabled: "shield_sound_enabled",
   journalEntries: "journal_entries",
   dailyStatusV1: "daily_status_v1",
   monthlyReportsV1: "monthly_reports_v1",

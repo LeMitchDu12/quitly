@@ -102,6 +102,8 @@
   "settingsDailyMotivation": "Daily motivation",
   "settingsMonthlyReportReady": "Monthly report ready",
   "settingsMonthlyReportReadyHint": "Notify when the new monthly report is available.",
+  "settingsShieldSoundTitle": "Shield sound (Premium)",
+  "settingsShieldSoundSubtitle": "Play a subtle calm sound during the 180s shield.",
   "settingsNotifScheduledAt": "Scheduled daily at 09:00.",
   "notificationsPremiumHint": "Managing reminders is reserved for Premium.",
   "notificationsCheckTitle": "Daily check (requires response)",

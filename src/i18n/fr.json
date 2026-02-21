@@ -99,6 +99,8 @@
   "settingsDisable": "Désactiver",
   "settingsDailyMotivation": "Motivation quotidienne",
   "settingsNotifScheduledAt": "Planifié chaque jour à 09:00.",
+  "settingsShieldSoundTitle": "Son du Shield (Premium)",
+  "settingsShieldSoundSubtitle": "Joue un son calme et discret pendant les 180 secondes du Shield.",
   "notificationsPremiumHint": "La gestion des rappels est réservée au Premium.",
   "notificationsCheckTitle": "Bilan quotidien (avec réponse)",
   "notificationsPassiveTitle": "Rappels passifs (aléatoires)",

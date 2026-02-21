@@ -33,6 +33,7 @@ import {
   isRevenueCatConfigured,
   restore as restoreRevenueCatPurchases,
 } from "../purchases";
+import { SHIELD_SOUND_ENABLED } from "../features/featureFlags";
 import {
   readCurrencyPreference,
   readLanguagePreference,
@@ -162,6 +163,7 @@ export default function SettingsScreen() {
   const isPremium = getBool(StorageKeys.isPremium) ?? false;
   const notificationsEnabledPref = getBool(StorageKeys.notificationsEnabled) ?? false;
   const notificationsEnabled = notificationsEnabledPref && isPremium;
+  const shieldSoundEnabled = getBool(StorageKeys.shieldSoundEnabled) ?? false;
   const launchMode = getLaunchMode();
   const needsRevenueCatReminder = launchMode !== "expo_go" && !isRevenueCatConfigured();
   const monthlyReportNotifFeatureEnabled = isMonthlyReportNotificationFeatureEnabled();
@@ -365,6 +367,15 @@ export default function SettingsScreen() {
     refresh();
   };
 
+  const toggleShieldSound = () => {
+    if (!isPremium) {
+      setPaywallOpen(true);
+      return;
+    }
+    setBool(StorageKeys.shieldSoundEnabled, !shieldSoundEnabled);
+    refresh();
+  };
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
@@ -532,6 +543,34 @@ export default function SettingsScreen() {
         <View style={styles.block}>
           <Text style={styles.section}>{t("premium")}</Text>
           <Row label={t("settingsStatus")} value={isPremium ? t("settingsEnabled") : t("settingsFree")} />
+          {SHIELD_SOUND_ENABLED && isPremium && (
+            <View style={styles.notificationGroup}>
+              <View style={styles.securityRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>{t("settingsShieldSoundTitle")}</Text>
+                  <Text style={styles.hint}>{t("settingsShieldSoundSubtitle")}</Text>
+                </View>
+                <Pressable
+                  onPress={toggleShieldSound}
+                  style={[
+                    styles.securitySwitch,
+                    shieldSoundEnabled ? styles.securitySwitchOn : styles.securitySwitchOff,
+                  ]}
+                >
+                  <View style={[styles.securityThumb, shieldSoundEnabled ? styles.securityThumbOn : null]} />
+                </Pressable>
+              </View>
+            </View>
+          )}
+          {SHIELD_SOUND_ENABLED && !isPremium && (
+            <Pressable style={styles.linkRow} onPress={() => setPaywallOpen(true)}>
+              <View>
+                <Text style={styles.linkRowLabel}>{t("settingsShieldSoundTitle")}</Text>
+                <Text style={styles.linkRowValue}>{t("settingsShieldSoundSubtitle")}</Text>
+              </View>
+              <Text style={styles.linkRowArrow}>{">"}</Text>
+            </Pressable>
+          )}
           <View style={styles.chipsRow}>
             <Chip title={t("restore")} onPress={handleRestorePurchases} />
             <Chip title={t("manageSubscription")} onPress={openManageSubscription} />

@@ -9,9 +9,11 @@ import ShieldPaywallModal from "../components/shield/ShieldPaywallModal";
 import { theme } from "../theme";
 import { StorageKeys } from "../storage/keys";
 import { getBool, getNumber, getString, setBool } from "../storage/mmkv";
+import { SHIELD_SOUND_ENABLED } from "../features/featureFlags";
 import { daysSince, cigarettesAvoided, moneySavedFromCigarettes } from "../utils/calculations";
 import { formatMoney } from "../localization/money";
 import { readDailyCheckins, totalSmokedSince } from "../storage/checkins";
+import { playShieldSound } from "../shield/shieldAudio";
 import {
   SHIELD_DURATION_SEC,
   SHIELD_FREE_WEEKLY_LIMIT,
@@ -55,6 +57,7 @@ export default function QuitlyShieldScreen() {
   const [pendingJournalAfterUnlock, setPendingJournalAfterUnlock] = useState(false);
   const [statsTick, setStatsTick] = useState(0);
   const [activeVariant, setActiveVariant] = useState<ShieldVariant>("default");
+  const [audioDebugMessage, setAudioDebugMessage] = useState<string | null>(null);
 
   const startedAtMsRef = useRef<number | null>(null);
   const completionHandledRef = useRef(false);
@@ -62,6 +65,9 @@ export default function QuitlyShieldScreen() {
   const phaseFade = useRef(new Animated.Value(1)).current;
   const phaseScale = useRef(new Animated.Value(1)).current;
   const sparkOpacity = useRef(new Animated.Value(0)).current;
+  const audioStopRef = useRef<(() => Promise<void>) | null>(null);
+  const audioStartInFlightRef = useRef(false);
+  const audioRequestIdRef = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -159,9 +165,57 @@ export default function QuitlyShieldScreen() {
 
   const refreshStats = () => setStatsTick((x) => x + 1);
 
+  const stopShieldAudio = useCallback(async () => {
+    audioRequestIdRef.current += 1;
+    const stop = audioStopRef.current;
+    audioStopRef.current = null;
+    if (!stop) return;
+    try {
+      await stop();
+    } catch {
+      // Ignore audio cleanup errors.
+    }
+  }, []);
+
+  const startShieldAudio = useCallback(async () => {
+    const preferenceEnabled = getBool(StorageKeys.shieldSoundEnabled) ?? false;
+    if (!SHIELD_SOUND_ENABLED || !isPremium || !preferenceEnabled) {
+      setAudioDebugMessage(
+        `Audio skipped (flag:${SHIELD_SOUND_ENABLED ? "on" : "off"}, premium:${isPremium ? "yes" : "no"}, pref:${
+          preferenceEnabled ? "on" : "off"
+        })`
+      );
+      console.log("[ShieldAudio] Skip start", {
+        featureFlag: SHIELD_SOUND_ENABLED,
+        isPremium,
+        preferenceEnabled,
+      });
+      return;
+    }
+    if (audioStopRef.current || audioStartInFlightRef.current) return;
+
+    const requestId = audioRequestIdRef.current + 1;
+    audioRequestIdRef.current = requestId;
+    audioStartInFlightRef.current = true;
+    try {
+      setAudioDebugMessage("Starting shield audio...");
+      const handle = await playShieldSound((message) => setAudioDebugMessage(message));
+      if (audioRequestIdRef.current !== requestId) {
+        await handle.stop();
+        return;
+      }
+      audioStopRef.current = handle.stop;
+    } catch (error) {
+      console.warn("[ShieldAudio] Failed to init handle", error);
+    } finally {
+      audioStartInFlightRef.current = false;
+    }
+  }, [isPremium]);
+
   const completeSession = useCallback(() => {
     if (completionHandledRef.current) return;
     completionHandledRef.current = true;
+    void stopShieldAudio();
     const startedAtMs = startedAtMsRef.current;
     if (startedAtMs == null) return;
     recordShieldSession({
@@ -171,9 +225,10 @@ export default function QuitlyShieldScreen() {
     });
     setSessionState("completed");
     refreshStats();
-  }, []);
+  }, [stopShieldAudio]);
 
   const stopSessionEarly = useCallback(() => {
+    void stopShieldAudio();
     const startedAtMs = startedAtMsRef.current;
     if (startedAtMs == null) return;
     recordShieldSession({
@@ -186,7 +241,7 @@ export default function QuitlyShieldScreen() {
     startedAtMsRef.current = null;
     completionHandledRef.current = false;
     refreshStats();
-  }, []);
+  }, [stopShieldAudio]);
 
   useFocusEffect(
     useCallback(() => {
@@ -203,15 +258,27 @@ export default function QuitlyShieldScreen() {
       updateElapsed();
       const interval = setInterval(updateElapsed, 250);
       const appSub = AppState.addEventListener("change", (state) => {
-        if (state === "active") updateElapsed();
+        if (state === "active") {
+          updateElapsed();
+          return;
+        }
+        if (state === "background") {
+          void stopShieldAudio();
+        }
       });
 
       return () => {
         clearInterval(interval);
         appSub.remove();
       };
-    }, [sessionState, completeSession])
+    }, [sessionState, completeSession, stopShieldAudio])
   );
+
+  useEffect(() => {
+    return () => {
+      void stopShieldAudio();
+    };
+  }, [stopShieldAudio]);
 
   const startShieldSession = () => {
     if (sessionState === "running") return;
@@ -227,12 +294,14 @@ export default function QuitlyShieldScreen() {
     const pickedVariant: ShieldVariant = !isPremium ? "default" : pickRandomVariant();
 
     setActiveVariant(pickedVariant);
+    setAudioDebugMessage(null);
     startedAtMsRef.current = Date.now();
     completionHandledRef.current = false;
     setElapsedSec(0);
     setSessionState("running");
     setView("session");
     refreshStats();
+    void startShieldAudio();
   };
 
   const confirmQuit = () => {
@@ -310,6 +379,11 @@ export default function QuitlyShieldScreen() {
           <View style={styles.phaseTrack}>
             <View style={[styles.phaseFill, { width: `${Math.round(progress * 100)}%` }]} />
           </View>
+          {audioDebugMessage ? (
+            <View style={styles.audioDebugCard}>
+              <Text style={styles.audioDebugText}>{audioDebugMessage}</Text>
+            </View>
+          ) : null}
         </View>
       );
     }
@@ -738,6 +812,20 @@ const styles = StyleSheet.create({
   },
   recentDate: { color: theme.colors.textPrimary, fontWeight: "700" },
   recentMeta: { color: theme.colors.textSecondary, marginTop: 3, fontSize: 12 },
+  audioDebugCard: {
+    marginTop: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(250,204,21,0.5)",
+    backgroundColor: "rgba(250,204,21,0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  audioDebugText: {
+    color: "#FDE68A",
+    fontSize: 12,
+    fontWeight: "700",
+  },
 });
 
 
