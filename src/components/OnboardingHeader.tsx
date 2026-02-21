@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
+import { useTranslation } from "react-i18next";
 import { theme } from "../theme";
 
 export default function OnboardingHeader({
@@ -13,6 +14,7 @@ export default function OnboardingHeader({
   onBack?: () => void;
   hideBack?: boolean;
 }) {
+  const { t } = useTranslation();
   const pct = Math.max(0, Math.min(1, step / total)) * 100;
 
   return (
@@ -26,7 +28,7 @@ export default function OnboardingHeader({
       )}
 
       <View style={{ flex: 1 }}>
-        <Text style={styles.stepText}>Step {step} of {total}</Text>
+        <Text style={styles.stepText}>{t("onboardingStepProgress", { step, total })}</Text>
         <View style={styles.track}>
           <View style={[styles.fill, { width: `${pct}%` }]} />
         </View>

@@ -16,6 +16,7 @@
   "onboardingToday": "Today",
   "onboardingYesterday": "Yesterday",
   "onboardingPickDate": "Pick a date",
+  "onboardingStepProgress": "Step {{step}} of {{total}}",
   "onboardingPreviewTitle": "In 7 days you could save",
   "onboardingPreviewHint": "Just by staying smoke-free.",
   "onboardingFooter": "No account. No judgment. Just progress.",

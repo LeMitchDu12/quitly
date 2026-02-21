@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, ScrollView } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import { RootStackParamList } from "../../navigation/Root";
 import Screen from "../../components/Screen";
@@ -82,6 +83,14 @@ export default function QuitDateScreen({ navigation }: Props) {
       }
     };
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS === "ios") {
+        setShowPicker(true);
+      }
+    }, [])
+  );
 
   const saveAndContinue = () => {
     setString(StorageKeys.quitDate, toISODate(date));
