@@ -1,7 +1,7 @@
 import { StorageKeys } from "../storage/keys";
 import { getNumber, getString, setNumber, setString } from "../storage/mmkv";
 
-export const SHIELD_DURATION_SEC = 180;
+export const SHIELD_DURATION_SEC = 10; // temporary for testing
 export const SHIELD_FREE_WEEKLY_LIMIT = 3;
 export const SHIELD_MAX_SESSIONS = 200;
 

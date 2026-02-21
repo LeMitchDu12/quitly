@@ -32,6 +32,7 @@ type ShieldModelOption = "random" | ShieldVariant;
 const SHIELD_VARIANTS: ShieldVariant[] = [
   "default",
   "morphing",
+  "flow",
   "bubbles",
   "bubblesV2",
   "bubblesV3",
@@ -108,6 +109,7 @@ export default function QuitlyShieldScreen() {
   const freeUsed = Math.max(0, Math.min(SHIELD_FREE_WEEKLY_LIMIT, stats.thisWeekCount));
   const shieldVariant: ShieldVariant = !isPremium ? "default" : activeVariant;
   const centerLabelInCircle = shieldVariant === "default" || shieldVariant === "defaut" || shieldVariant === "morphing";
+  const useFlowInternalTimer = shieldVariant === "flow";
   const progress = Math.max(0, Math.min(1, elapsedSec / SHIELD_DURATION_SEC));
   const secondsLeft = Math.max(0, SHIELD_DURATION_SEC - elapsedSec);
   const phaseIndex = elapsedSec < 60 ? 1 : elapsedSec < 120 ? 2 : 3;
@@ -342,6 +344,14 @@ export default function QuitlyShieldScreen() {
     ]);
   };
 
+  const onTopClose = () => {
+    if (sessionState === "running") {
+      confirmQuit();
+      return;
+    }
+    navigation.goBack();
+  };
+
   const closeCompleted = () => {
     setSessionState("idle");
     setElapsedSec(0);
@@ -378,9 +388,7 @@ export default function QuitlyShieldScreen() {
           <Animated.View pointerEvents="none" style={[styles.sparkOverlay, { opacity: sparkOpacity }]} />
           <View style={styles.runningHeader}>
             <View />
-            <Pressable onPress={confirmQuit} hitSlop={10}>
-              <Text style={styles.quitText}>{t("shieldQuit")}</Text>
-            </Pressable>
+            <View />
           </View>
           <ShieldVisual
             progress={progress}
@@ -391,9 +399,8 @@ export default function QuitlyShieldScreen() {
             showCenterLabel={centerLabelInCircle}
             animate
           />
-          {!centerLabelInCircle ? (
+          {!centerLabelInCircle && !useFlowInternalTimer ? (
             <View style={styles.outerTimerWrap}>
-              <Text style={styles.outerTimerTime}>{secondsLeft}s</Text>
               <Text style={styles.outerTimerPercent}>{Math.round(progress * 100)}%</Text>
             </View>
           ) : null}
@@ -411,9 +418,6 @@ export default function QuitlyShieldScreen() {
               {phaseText}
             </Text>
           </Animated.View>
-          <View style={styles.phaseTrack}>
-            <View style={[styles.phaseFill, { width: `${Math.round(progress * 100)}%` }]} />
-          </View>
           {audioDebugMessage ? (
             <View style={styles.audioDebugCard}>
               <Text style={styles.audioDebugText}>{audioDebugMessage}</Text>
@@ -425,22 +429,14 @@ export default function QuitlyShieldScreen() {
 
     if (sessionState === "completed") {
       return (
-        <View style={styles.sessionWrap}>
-          <Text style={styles.doneCheck}>GO</Text>
-          <ShieldVisual
-            progress={1}
-            secondsLeft={0}
-            phase={3}
-            premiumFx={isPremium}
-            variant={shieldVariant}
-            showCenterLabel={centerLabelInCircle}
-            animate={false}
-          />
-          <Text style={styles.doneTitle}>{t("shieldDoneTitle")}</Text>
-          <Pressable style={styles.noteButton} onPress={onAddJournalNote}>
-            <Text style={styles.noteButtonText}>{t("journalAddNote")}</Text>
-          </Pressable>
-          <Pressable style={styles.backButton} onPress={closeCompleted}>
+        <View style={styles.completedWrap}>
+          <View style={styles.completedContent}>
+            <Text style={styles.doneTitle}>{t("shieldDoneTitle")}</Text>
+            <Pressable style={styles.noteButton} onPress={onAddJournalNote}>
+              <Text style={styles.noteButtonText}>{t("journalAddNote")}</Text>
+            </Pressable>
+          </View>
+          <Pressable style={styles.backButtonBottom} onPress={closeCompleted}>
             <Text style={styles.backButtonText}>{t("shieldBack")}</Text>
           </Pressable>
         </View>
@@ -539,7 +535,7 @@ export default function QuitlyShieldScreen() {
     <Screen>
       <View style={styles.root}>
         <View style={styles.topBar}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
+          <Pressable onPress={onTopClose} hitSlop={10}>
             <Text style={styles.backTop}>{t("close")}</Text>
           </Pressable>
           {sessionState !== "running" && (
@@ -678,10 +674,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: theme.spacing.md,
   },
-  quitText: {
-    color: theme.colors.textTertiary,
-    fontSize: 12,
-  },
   phaseText: {
     color: theme.colors.textPrimary,
     textAlign: "center",
@@ -693,17 +685,11 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.sm,
     alignItems: "center",
   },
-  outerTimerTime: {
-    color: theme.colors.textPrimary,
-    fontSize: 40,
-    fontWeight: "900",
-    letterSpacing: 0.2,
-  },
   outerTimerPercent: {
     marginTop: 2,
-    color: theme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "700",
+    color: theme.colors.textPrimary,
+    fontSize: 24,
+    fontWeight: "900",
   },
   phaseCard: {
     marginTop: theme.spacing.md,
@@ -734,15 +720,18 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     borderRadius: 999,
   },
-  doneCheck: {
-    alignSelf: "center",
-    color: theme.colors.primary,
-    fontSize: 26,
-    fontWeight: "900",
-    marginBottom: theme.spacing.xs,
+  completedWrap: {
+    flex: 1,
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  completedContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   doneTitle: {
-    marginTop: theme.spacing.md,
+    marginTop: theme.spacing.xs,
     color: theme.colors.textPrimary,
     fontWeight: "800",
     textAlign: "center",
@@ -760,6 +749,16 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: theme.colors.textPrimary,
     fontWeight: "800",
+  },
+  backButtonBottom: {
+    alignSelf: "stretch",
+    marginBottom: theme.spacing.md,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    alignItems: "center",
   },
   noteButton: {
     marginTop: theme.spacing.sm,

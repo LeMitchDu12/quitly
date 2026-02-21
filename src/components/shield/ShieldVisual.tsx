@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Platform, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Ellipse } from "react-native-svg";
 import { theme } from "../../theme";
@@ -13,6 +13,7 @@ export type ShieldVariant =
   | "bubbles"
   | "bubblesV2"
   | "bubblesV3"
+  | "flow"
   | "geoV1"
   | "geoV2"
   | "geoV3"
@@ -37,10 +38,9 @@ function ellipseCircumference(rx: number, ry: number) {
   return Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
 }
 
-function CenterLabel({ secondsLeft, progress }: { secondsLeft: number; progress: number }) {
+function CenterLabel({ secondsLeft: _secondsLeft, progress }: { secondsLeft: number; progress: number }) {
   return (
     <View style={styles.centerLabel}>
-      <Text style={styles.time}>{secondsLeft}s</Text>
       <Text style={styles.percent}>{Math.round(progress * 100)}%</Text>
     </View>
   );
@@ -62,13 +62,13 @@ function MorphingVisual({ progress, secondsLeft, phase, size = 260, showCenterLa
           toValue: 1,
           duration,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(morph, {
           toValue: 0,
           duration,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );
@@ -77,7 +77,7 @@ function MorphingVisual({ progress, secondsLeft, phase, size = 260, showCenterLa
         toValue: 0.5,
         duration: 420,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start();
       return () => undefined;
     }
@@ -159,7 +159,7 @@ function GlassVisual({ progress, secondsLeft, phase, size = 260, showCenterLabel
     }
     Animated.spring(intro, {
       toValue: 1,
-      useNativeDriver: true,
+      useNativeDriver: false,
       speed: 12,
       bounciness: 5,
     }).start();
@@ -171,7 +171,7 @@ function GlassVisual({ progress, secondsLeft, phase, size = 260, showCenterLabel
       toValue: phase === 3 && p > 0.97 ? 1 : 0,
       duration: 340,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [animate, phase, p, victoryLift]);
 
@@ -230,14 +230,14 @@ function TensionVisual({ progress, secondsLeft, size = 260, showCenterLabel = tr
     }
     const j = Animated.loop(
       Animated.sequence([
-        Animated.timing(jitter, { toValue: 1, duration: 120, easing: Easing.linear, useNativeDriver: true }),
-        Animated.timing(jitter, { toValue: -1, duration: 120, easing: Easing.linear, useNativeDriver: true }),
+        Animated.timing(jitter, { toValue: 1, duration: 120, easing: Easing.linear, useNativeDriver: false }),
+        Animated.timing(jitter, { toValue: -1, duration: 120, easing: Easing.linear, useNativeDriver: false }),
       ])
     );
     const g = Animated.loop(
       Animated.sequence([
-        Animated.timing(unstableGlow, { toValue: 1, duration: 280, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(unstableGlow, { toValue: 0, duration: 280, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(unstableGlow, { toValue: 1, duration: 280, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+        Animated.timing(unstableGlow, { toValue: 0, duration: 280, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
       ])
     );
     j.start();
@@ -257,7 +257,7 @@ function TensionVisual({ progress, secondsLeft, size = 260, showCenterLabel = tr
       toValue: Math.max(0, 1 - p),
       duration: 180,
       easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [animate, intensity, p]);
 
@@ -326,7 +326,7 @@ function BubblesVisual({ progress, secondsLeft, phase, size = 260, showCenterLab
         toValue: 1,
         duration: orbitDuration,
         easing: Easing.linear,
-        useNativeDriver: true,
+        useNativeDriver: false,
       })
     );
     orbit.setValue(0);
@@ -346,13 +346,13 @@ function BubblesVisual({ progress, secondsLeft, phase, size = 260, showCenterLab
           toValue: 1,
           duration: morphDuration,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(morph, {
           toValue: 0,
           duration: morphDuration,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );
@@ -477,13 +477,13 @@ function BubblesVisualV2({ progress, secondsLeft, phase, size = 260, showCenterL
           toValue: 1,
           duration: phase === 3 ? 700 : 1000,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(pulse, {
           toValue: 0,
           duration: phase === 3 ? 700 : 1000,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );
@@ -502,13 +502,13 @@ function BubblesVisualV2({ progress, secondsLeft, phase, size = 260, showCenterL
           toValue: 1,
           duration: 2400,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(drift, {
           toValue: 0,
           duration: 2400,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );
@@ -1722,6 +1722,103 @@ function GeometricVisualV4({ progress, secondsLeft, phase, size = 260, showCente
   );
 }
 
+const FLOW_BUBBLES = [
+  { size: 26, a: [-120, 40, 170], y: [-18, -30, -14], o: [0.2, 0.55, 0.25] },
+  { size: 34, a: [140, -20, -170], y: [22, 8, 26], o: [0.15, 0.45, 0.18] },
+  { size: 18, a: [-70, 90, -150], y: [46, 28, 44], o: [0.1, 0.35, 0.12] },
+  { size: 42, a: [170, 60, -120], y: [-40, -24, -44], o: [0.15, 0.3, 0.1] },
+  { size: 22, a: [-150, -20, 120], y: [8, -6, 14], o: [0.14, 0.5, 0.2] },
+  { size: 30, a: [120, -50, -170], y: [54, 40, 48], o: [0.08, 0.28, 0.1] },
+  { size: 20, a: [-30, 130, -90], y: [-52, -34, -56], o: [0.12, 0.33, 0.12] },
+  { size: 28, a: [80, -130, 100], y: [30, 12, 26], o: [0.1, 0.38, 0.16] },
+];
+
+function FlowGaugeVisual({ progress, secondsLeft: _secondsLeft, animate = true }: ShieldVisualProps) {
+  const p = clamp01(progress);
+  const drift = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!animate) {
+      drift.setValue(0);
+      pulse.setValue(0);
+      return () => undefined;
+    }
+    const move = Animated.loop(
+      Animated.sequence([
+        Animated.timing(drift, {
+          toValue: 1,
+          duration: 6800,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: false,
+        }),
+        Animated.timing(drift, {
+          toValue: 0,
+          duration: 6800,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    const breath = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 2200,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 2200,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    move.start();
+    breath.start();
+    return () => {
+      move.stop();
+      breath.stop();
+    };
+  }, [animate, drift, pulse]);
+
+  return (
+    <View style={styles.flowWrap}>
+      <View style={styles.flowCanvas}>
+        {FLOW_BUBBLES.map((bubble, idx) => {
+          const tx = drift.interpolate({ inputRange: [0, 0.5, 1], outputRange: bubble.a });
+          const ty = drift.interpolate({ inputRange: [0, 0.5, 1], outputRange: bubble.y });
+          const op = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: bubble.o });
+          const sc = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.08] });
+          return (
+            <Animated.View
+              key={`flow-bubble-${idx}`}
+              style={[
+                styles.flowBubble,
+                {
+                  width: bubble.size,
+                  height: bubble.size,
+                  opacity: op,
+                  transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }],
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
+
+      <View style={styles.flowGaugeWrap}>
+        <View style={styles.flowGaugeTrack}>
+          <View style={[styles.flowGaugeFill, { width: `${Math.round(p * 100)}%` }]} />
+        </View>
+        <Text style={styles.flowGaugeHint}>{Math.round(p * 100)}%</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function ShieldVisual(props: ShieldVisualProps) {
   const variant = props.variant ?? "default";
   const normalized = variant === "defaut" ? "default" : variant;
@@ -1744,6 +1841,7 @@ export default function ShieldVisual(props: ShieldVisualProps) {
   if (normalized === "bubbles") return <BubblesVisual {...props} />;
   if (normalized === "bubblesV2") return <BubblesVisualV2 {...props} />;
   if (normalized === "bubblesV3") return <BubblesVisualV3 {...props} />;
+  if (normalized === "flow") return <FlowGaugeVisual {...props} />;
   if (normalized === "geoV1") return <GeometricVisualV1 {...props} />;
   if (normalized === "geoV2") return <GeometricVisualV2 {...props} />;
   if (normalized === "geoV3") return <GeometricVisualV3 {...props} />;
@@ -2068,4 +2166,51 @@ const styles = StyleSheet.create({
     borderRightColor: "transparent",
     backgroundColor: "transparent",
   },
+  flowWrap: {
+    alignSelf: "stretch",
+    minHeight: 300,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  flowCanvas: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: -24,
+    bottom: -24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flowBubble: {
+    position: "absolute",
+    borderRadius: 999,
+    backgroundColor: "rgba(74,222,128,0.35)",
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.4)",
+  },
+  flowGaugeWrap: {
+    width: "92%",
+    alignItems: "center",
+    gap: 8,
+  },
+  flowGaugeTrack: {
+    width: "100%",
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: "rgba(148,163,184,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.35)",
+    overflow: "hidden",
+  },
+  flowGaugeFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: theme.colors.primary,
+  },
+  flowGaugeHint: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
 });
+

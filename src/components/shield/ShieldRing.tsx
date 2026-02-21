@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+﻿import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { theme } from "../../theme";
@@ -42,13 +42,13 @@ export default function ShieldRing({
           toValue: 1,
           duration: 1800,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(pulse, {
           toValue: 0,
           duration: 1800,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );
@@ -78,13 +78,13 @@ export default function ShieldRing({
           toValue: beatScale,
           duration: 140,
           easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(secondBeatScale, {
           toValue: 1,
           duration: 260,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]),
       Animated.sequence([
@@ -92,13 +92,13 @@ export default function ShieldRing({
           toValue: beatOpacity,
           duration: 110,
           easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(secondBeatOpacity, {
           toValue: 0,
           duration: 290,
           easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]),
     ]).start();
@@ -183,7 +183,6 @@ export default function ShieldRing({
       </Svg>
       {showCenterLabel ? (
         <View style={styles.center}>
-          <Text style={styles.time}>{secondsLeft}s</Text>
           <Text style={styles.percent}>{donePercent}%</Text>
         </View>
       ) : null}
@@ -235,3 +234,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
