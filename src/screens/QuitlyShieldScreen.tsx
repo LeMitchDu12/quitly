@@ -27,8 +27,20 @@ import type { RootStackParamList } from "../navigation/Root";
 
 type ShieldView = "session" | "stats";
 type SessionState = "idle" | "running" | "completed";
+type ShieldModelOption = "random" | ShieldVariant;
 
-const SHIELD_VARIANTS: ShieldVariant[] = ["default", "morphing", "glass", "tension"];
+const SHIELD_VARIANTS: ShieldVariant[] = [
+  "default",
+  "morphing",
+  "bubbles",
+  "bubblesV2",
+  "bubblesV3",
+  "geoV1",
+  "geoV2",
+  "geoV3",
+  "geoV4",
+];
+const SHIELD_MODEL_OPTIONS: ShieldModelOption[] = ["random", ...SHIELD_VARIANTS];
 
 function pickRandomVariant(): ShieldVariant {
   const idx = Math.floor(Math.random() * SHIELD_VARIANTS.length);
@@ -57,6 +69,7 @@ export default function QuitlyShieldScreen() {
   const [pendingJournalAfterUnlock, setPendingJournalAfterUnlock] = useState(false);
   const [statsTick, setStatsTick] = useState(0);
   const [activeVariant, setActiveVariant] = useState<ShieldVariant>("default");
+  const [selectedModel, setSelectedModel] = useState<ShieldModelOption>("random");
   const [audioDebugMessage, setAudioDebugMessage] = useState<string | null>(null);
 
   const startedAtMsRef = useRef<number | null>(null);
@@ -94,20 +107,34 @@ export default function QuitlyShieldScreen() {
 
   const freeUsed = Math.max(0, Math.min(SHIELD_FREE_WEEKLY_LIMIT, stats.thisWeekCount));
   const shieldVariant: ShieldVariant = !isPremium ? "default" : activeVariant;
+  const centerLabelInCircle = shieldVariant === "default" || shieldVariant === "defaut" || shieldVariant === "morphing";
   const progress = Math.max(0, Math.min(1, elapsedSec / SHIELD_DURATION_SEC));
   const secondsLeft = Math.max(0, SHIELD_DURATION_SEC - elapsedSec);
   const phaseIndex = elapsedSec < 60 ? 1 : elapsedSec < 120 ? 2 : 3;
+  const phaseMessageIndex =
+    elapsedSec < 30 ? 1 :
+    elapsedSec < 60 ? 2 :
+    elapsedSec < 90 ? 3 :
+    elapsedSec < 120 ? 4 :
+    elapsedSec < 150 ? 5 :
+    6;
 
   const phaseText = useMemo(() => {
-    if (elapsedSec < 60) return t("shieldPhase1");
-    if (elapsedSec < 120) return t("shieldPhase2", { days: profile.days, money: savedLabel });
-    return t("shieldPhase3");
-  }, [elapsedSec, t, profile.days, savedLabel]);
+    if (phaseMessageIndex === 1) return t("shieldPhase1");
+    if (phaseMessageIndex === 2) return t("shieldPhase2");
+    if (phaseMessageIndex === 3) return t("shieldPhase3", { days: profile.days, money: savedLabel });
+    if (phaseMessageIndex === 4) return t("shieldPhase4");
+    if (phaseMessageIndex === 5) return t("shieldPhase5");
+    return t("shieldPhase6");
+  }, [phaseMessageIndex, t, profile.days, savedLabel]);
   const phaseIcon = useMemo(() => {
-    if (elapsedSec < 60) return "🫁";
-    if (elapsedSec < 120) return "💚";
+    if (phaseMessageIndex === 1) return "🫁";
+    if (phaseMessageIndex === 2) return "🌬️";
+    if (phaseMessageIndex === 3) return "💚";
+    if (phaseMessageIndex === 4) return "🧠";
+    if (phaseMessageIndex === 5) return "✨";
     return "🏆";
-  }, [elapsedSec]);
+  }, [phaseMessageIndex]);
 
   useEffect(() => {
     if (sessionState !== "running") {
@@ -291,7 +318,11 @@ export default function QuitlyShieldScreen() {
 
     if (!isPremium) consumeFreeShieldWeeklySlot(new Date());
 
-    const pickedVariant: ShieldVariant = !isPremium ? "default" : pickRandomVariant();
+    const pickedVariant: ShieldVariant = !isPremium
+      ? "default"
+      : selectedModel === "random"
+      ? pickRandomVariant()
+      : selectedModel;
 
     setActiveVariant(pickedVariant);
     setAudioDebugMessage(null);
@@ -346,11 +377,7 @@ export default function QuitlyShieldScreen() {
           <View style={styles.sessionGlowB} />
           <Animated.View pointerEvents="none" style={[styles.sparkOverlay, { opacity: sparkOpacity }]} />
           <View style={styles.runningHeader}>
-            <View style={styles.phaseChip}>
-              <Text style={styles.phaseChipText}>
-                {t("shieldPhaseLabel")} {phaseIndex}/3
-              </Text>
-            </View>
+            <View />
             <Pressable onPress={confirmQuit} hitSlop={10}>
               <Text style={styles.quitText}>{t("shieldQuit")}</Text>
             </Pressable>
@@ -361,7 +388,15 @@ export default function QuitlyShieldScreen() {
             phase={phaseIndex as 1 | 2 | 3}
             premiumFx={isPremium}
             variant={shieldVariant}
+            showCenterLabel={centerLabelInCircle}
+            animate
           />
+          {!centerLabelInCircle ? (
+            <View style={styles.outerTimerWrap}>
+              <Text style={styles.outerTimerTime}>{secondsLeft}s</Text>
+              <Text style={styles.outerTimerPercent}>{Math.round(progress * 100)}%</Text>
+            </View>
+          ) : null}
           <Animated.View
             style={[
               styles.phaseCard,
@@ -372,7 +407,7 @@ export default function QuitlyShieldScreen() {
             ]}
           >
             <Text style={styles.phaseIcon}>{phaseIcon}</Text>
-            <Text numberOfLines={1} style={styles.phaseText}>
+            <Text style={styles.phaseText}>
               {phaseText}
             </Text>
           </Animated.View>
@@ -392,7 +427,15 @@ export default function QuitlyShieldScreen() {
       return (
         <View style={styles.sessionWrap}>
           <Text style={styles.doneCheck}>GO</Text>
-          <ShieldVisual progress={1} secondsLeft={0} phase={3} premiumFx={isPremium} variant={shieldVariant} />
+          <ShieldVisual
+            progress={1}
+            secondsLeft={0}
+            phase={3}
+            premiumFx={isPremium}
+            variant={shieldVariant}
+            showCenterLabel={centerLabelInCircle}
+            animate={false}
+          />
           <Text style={styles.doneTitle}>{t("shieldDoneTitle")}</Text>
           <Pressable style={styles.noteButton} onPress={onAddJournalNote}>
             <Text style={styles.noteButtonText}>{t("journalAddNote")}</Text>
@@ -516,6 +559,30 @@ export default function QuitlyShieldScreen() {
             </View>
           )}
         </View>
+        <View style={styles.modelDebugBadge}>
+          <Text style={styles.modelDebugText}>Model: {shieldVariant} (selected: {selectedModel})</Text>
+        </View>
+        {sessionState !== "running" && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.modelSelectorRow}
+            style={styles.modelSelectorWrap}
+          >
+            {SHIELD_MODEL_OPTIONS.map((option) => {
+              const active = selectedModel === option;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => setSelectedModel(option)}
+                  style={[styles.modelChip, active && styles.modelChipActive]}
+                >
+                  <Text style={[styles.modelChipText, active && styles.modelChipTextActive]}>{option}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {view === "session" || sessionState === "running" ? (
           renderSessionPanel()
@@ -611,19 +678,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: theme.spacing.md,
   },
-  phaseChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(74,222,128,0.35)",
-    backgroundColor: "rgba(74,222,128,0.12)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  phaseChipText: {
-    color: theme.colors.primary,
-    fontSize: 11,
-    fontWeight: "900",
-  },
   quitText: {
     color: theme.colors.textTertiary,
     fontSize: 12,
@@ -633,6 +687,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "800",
     fontSize: 16,
+    paddingRight: 10,
+  },
+  outerTimerWrap: {
+    marginTop: theme.spacing.sm,
+    alignItems: "center",
+  },
+  outerTimerTime: {
+    color: theme.colors.textPrimary,
+    fontSize: 40,
+    fontWeight: "900",
+    letterSpacing: 0.2,
+  },
+  outerTimerPercent: {
+    marginTop: 2,
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
   },
   phaseCard: {
     marginTop: theme.spacing.md,
@@ -649,6 +720,7 @@ const styles = StyleSheet.create({
   },
   phaseIcon: {
     fontSize: 18,
+    paddingLeft: 4,
   },
   phaseTrack: {
     marginTop: theme.spacing.sm,
@@ -825,6 +897,51 @@ const styles = StyleSheet.create({
     color: "#FDE68A",
     fontSize: 12,
     fontWeight: "700",
+  },
+  modelDebugBadge: {
+    marginTop: 6,
+    marginBottom: 2,
+    alignSelf: "flex-start",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.55)",
+    backgroundColor: "rgba(74,222,128,0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  modelDebugText: {
+    color: "#86EFAC",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.2,
+  },
+  modelSelectorWrap: {
+    marginTop: 6,
+    maxHeight: 46,
+  },
+  modelSelectorRow: {
+    gap: 8,
+    paddingRight: 8,
+  },
+  modelChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: "transparent",
+  },
+  modelChipActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: "rgba(74,222,128,0.16)",
+  },
+  modelChipText: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  modelChipTextActive: {
+    color: theme.colors.primary,
   },
 });
 

@@ -10,6 +10,8 @@ export default function ShieldRing({
   secondsLeft,
   phase = 1,
   beatEnabled = false,
+  showCenterLabel = true,
+  animate = true,
 }: {
   progress: number;
   size?: number;
@@ -17,6 +19,8 @@ export default function ShieldRing({
   secondsLeft: number;
   phase?: 1 | 2 | 3;
   beatEnabled?: boolean;
+  showCenterLabel?: boolean;
+  animate?: boolean;
 }) {
   const p = Math.max(0, Math.min(1, progress));
   const radius = (size - stroke) / 2;
@@ -28,6 +32,10 @@ export default function ShieldRing({
   const secondBeatOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (!animate) {
+      pulse.setValue(0);
+      return () => undefined;
+    }
     const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
@@ -46,10 +54,14 @@ export default function ShieldRing({
     );
     anim.start();
     return () => anim.stop();
-  }, [pulse]);
+  }, [animate, pulse]);
 
   useEffect(() => {
-    if (!beatEnabled) return;
+    if (!animate || !beatEnabled) {
+      secondBeatScale.setValue(1);
+      secondBeatOpacity.setValue(0);
+      return;
+    }
     // One visual beat per second for a "heartbeat" feel.
     const beatScale =
       phase === 1 ? 1.1 :
@@ -90,7 +102,7 @@ export default function ShieldRing({
         }),
       ]),
     ]).start();
-  }, [secondsLeft, secondBeatOpacity, secondBeatScale, beatEnabled, phase]);
+  }, [animate, secondsLeft, secondBeatOpacity, secondBeatScale, beatEnabled, phase]);
 
   const beatColor =
     phase === 1 ? "rgba(74,222,128,0.75)" :
@@ -169,10 +181,12 @@ export default function ShieldRing({
           originY={size / 2}
         />
       </Svg>
-      <View style={styles.center}>
-        <Text style={styles.time}>{secondsLeft}s</Text>
-        <Text style={styles.percent}>{donePercent}%</Text>
-      </View>
+      {showCenterLabel ? (
+        <View style={styles.center}>
+          <Text style={styles.time}>{secondsLeft}s</Text>
+          <Text style={styles.percent}>{donePercent}%</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
